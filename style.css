@@ -733,6 +733,25 @@ body.force-landscape #app-wrapper {
   width: 100%;
 }
 
+.tier-upgrade-btn {
+  background: linear-gradient(90deg, #ffe600, #ff7b00, #ff2a85);
+  color: #050510;
+  box-shadow: 0 0 28px rgba(255, 200, 0, 0.75);
+  width: 100%;
+  font-size: 16px;
+  font-weight: 900;
+  animation: pulseTierBtn 1.2s infinite ease-in-out;
+}
+
+.tier-upgrade-btn.hidden {
+  display: none;
+}
+
+@keyframes pulseTierBtn {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
 .primary-btn {
   background: linear-gradient(90deg, var(--neon-cyan), #3a86ff);
   color: #040814;

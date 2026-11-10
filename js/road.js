@@ -142,10 +142,10 @@ class NeonRoad {
     this.buildLevelTable();
   }
 
-  // 1단계부터 50단계까지 죽지 않고 달릴 때 총 20분(1,200초 = 단계당 정확히 24초)이 걸리도록 레벨별 도로 길이 설정
+  // 1단계부터 50단계까지 죽지 않고 달릴 때 총 15분(900초 = 단계당 정확히 18초)이 걸리도록 레벨별 도로 길이 설정
   buildLevelTable() {
     this.maxLevel = 50;
-    this.secondsPerLevel = 24; // 50단계 * 24초 = 1,200초 (정확히 20분)
+    this.secondsPerLevel = 18; // 50단계 * 18초 = 900초 (정확히 15분)
     this.levels = [];
 
     let cumulativePx = 0;

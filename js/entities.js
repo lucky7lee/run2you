@@ -48,7 +48,7 @@ class NeonBike {
     this.muzzleFlashTimer = 0;
   }
 
-  activateAirplane(durationSec = 10.0) {
+  activateAirplane(durationSec = 7.0) {
     this.airplaneTimer = durationSec;
     this.isGrounded = false;
     this.isHoldingJump = false;
@@ -1234,7 +1234,7 @@ class WeaponItem {
     ctx.font = '900 9px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const labelText = isAirplane ? '✈️ 비행기 변신 (10초 무적)' : isBazooka ? '🎁 바주카 +1' : '🎁 총알 +6';
+    const labelText = isAirplane ? '✈️ 비행기 변신 (7초 무적)' : isBazooka ? '🎁 바주카 +1' : '🎁 총알 +5';
     ctx.fillText(labelText, 0, badgeY + badgeH * 0.5 + 0.5);
 
     ctx.restore();
