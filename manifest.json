@@ -1,0 +1,10 @@
+{
+  "name": "NEON RIDER: RUN 2 YOU",
+  "short_name": "RUN2YOU",
+  "description": "스마트폰 전용 네온 라인 오토바이 액션 러너",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#050510",
+  "theme_color": "#00f3ff"
+}

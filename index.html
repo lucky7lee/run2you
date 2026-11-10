@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#050510" />
+  <title>RUN 2 YOU - 네온 라인 바이크 러너</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 세로 모드 안내 배너 (강제 가로 회전 모드 미활성 시 표시) -->
+  <div id="portrait-overlay" class="portrait-overlay">
+    <div class="portrait-card">
+      <div class="rotate-icon">📱↻</div>
+      <h2>스마트폰을 가로로 돌려주세요</h2>
+      <p>이 게임은 스마트폰 가로 화면(2D 횡스크롤) 전용으로 설계되었습니다.</p>
+      <button id="btn-force-landscape" class="neon-btn primary-btn">
+        회전 잠금 상태라면? 강제 가로 모드로 실행
+      </button>
+    </div>
+  </div>
+
+  <!-- 메인 앱 래퍼 (강제 가로 회전 시 90도 회전 적용 가능) -->
+  <div id="app-wrapper">
+    <canvas id="game-canvas"></canvas>
+
+    <!-- 상단 HUD (거리 기록, 최고 기록, 난이도/속도, 도로 테마, 컨트롤 전환/일시정지) -->
+    <header id="hud-top" class="hud-top">
+      <div class="hud-group stats-group">
+        <div class="stat-box current-dist">
+          <span class="stat-label">DISTANCE</span>
+          <div class="stat-value-wrap">
+            <span id="hud-distance">0</span><small>m</small>
+          </div>
+        </div>
+        <div class="stat-box best-dist">
+          <span class="stat-label">BEST RECORD</span>
+          <div class="stat-value-wrap">
+            <span id="hud-best">0</span><small>m</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="hud-center-info">
+        <div id="hud-sector-badge" class="sector-badge">SECTOR 01 · NEON HIGHWAY</div>
+        <div class="speed-level-row">
+          <span id="hud-level" class="level-pill">LV.1</span>
+          <span id="hud-speed" class="speed-pill">120 km/h</span>
+          <span id="hud-road-style" class="road-pill">평탄 웨이브</span>
+        </div>
+      </div>
+
+      <div class="hud-group utility-group">
+        <div class="ammo-status-bar">
+          <div id="hud-bullet-box" class="ammo-chip bullet-chip">
+            <span class="ammo-icon">⚡</span>
+            <span class="ammo-name">총알</span>
+            <strong id="hud-bullet-count">6</strong>
+          </div>
+          <div id="hud-bazooka-box" class="ammo-chip bazooka-chip">
+            <span class="ammo-icon">🚀</span>
+            <span class="ammo-name">바주카</span>
+            <strong id="hud-bazooka-count">1</strong>
+          </div>
+        </div>
+        <button id="btn-swap-hand" class="icon-btn" title="좌우 버튼 위치 바꾸기" aria-label="좌우 조작 전환">⇄</button>
+        <button id="btn-sound" class="icon-btn" title="사운드 켜기/끄기" aria-label="사운드">🔊</button>
+        <button id="btn-pause" class="icon-btn" title="일시정지" aria-label="일시정지">⏸</button>
+      </div>
+    </header>
+
+    <!-- 중앙 알림 배너 (최고 기록 갱신, 섹터 변경, 무기 획득 안내) -->
+    <div id="center-banner" class="center-banner hidden">
+      <div id="banner-title" class="banner-title">NEW RECORD!</div>
+      <div id="banner-sub" class="banner-sub">최고 달린 기록을 돌파했습니다!</div>
+    </div>
+
+    <!-- 점프 게이지 인디케이터 (짧은 점프 vs 긴 점프 체공 게이지) -->
+    <div id="jump-meter-wrap" class="jump-meter-wrap hidden">
+      <div class="jump-meter-label" id="jump-meter-label">SHORT HOP</div>
+      <div class="jump-meter-track">
+        <div id="jump-meter-fill" class="jump-meter-fill"></div>
+      </div>
+    </div>
+
+    <!-- 스마트폰 전용 하단 양손 엄지 터치 컨트롤러 -->
+    <div id="touch-controls" class="touch-controls">
+      <!-- 왼쪽 엄지 영역: 점프 (짧게 터치 = 짧은 점프 / 길게 누르기 = 긴 점프) -->
+      <div class="control-side left-side" id="ctrl-jump-side">
+        <button id="btn-jump" class="touch-pad jump-pad" type="button">
+          <span class="pad-ring"></span>
+          <span class="pad-main-icon">▲</span>
+          <span class="pad-title">JUMP</span>
+          <span class="pad-desc">짧게 터치: 단거리 점프<br/>길게 누름: 장거리 점프</span>
+        </button>
+      </div>
+
+      <!-- 오른쪽 엄지 영역: 무기 발사 (총알 3발 파괴 / 바주카포 1발 파괴) -->
+      <div class="control-side right-side" id="ctrl-weapon-side">
+        <button id="btn-bazooka" class="touch-pad bazooka-pad" type="button">
+          <span class="pad-badge" id="pad-bazooka-ammo">1</span>
+          <span class="pad-main-icon">🚀</span>
+          <span class="pad-title">BAZOOKA</span>
+          <span class="pad-desc">1방 즉시 파괴</span>
+        </button>
+        <button id="btn-bullet" class="touch-pad bullet-pad" type="button">
+          <span class="pad-badge" id="pad-bullet-ammo">6</span>
+          <span class="pad-main-icon">⚡</span>
+          <span class="pad-title">FIRE</span>
+          <span class="pad-desc">총알 (3발 파괴)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 시작 화면 모달 -->
+    <div id="start-modal" class="modal-overlay">
+      <div class="modal-panel">
+        <div class="game-badge">SMARTPHONE EXCLUSIVE · NEON LINE RUNNER</div>
+        <h1 class="game-title">RUN <span>2</span> YOU</h1>
+        <p class="game-subtitle">끝없이 변하는 네온 선 도로를 질주하며 최고 기록을 경신하세요!</p>
+
+        <div class="guide-grid">
+          <div class="guide-card">
+            <div class="guide-icon cyan">▲</div>
+            <div class="guide-text">
+              <strong>길이별 맞춤 점프</strong>
+              <span>짧은 장애물은 <b>짧게 탭</b>, 긴 장애물은 <b>길게 홀드</b>하여 도약!</span>
+            </div>
+          </div>
+          <div class="guide-card">
+            <div class="guide-icon yellow">⚡</div>
+            <div class="guide-text">
+              <strong>총알 사격 (3발 파괴)</strong>
+              <span>도로 위 총알 아이템 획득! <b>3번 명중</b> 시 장애물 파괴!</span>
+            </div>
+          </div>
+          <div class="guide-card">
+            <div class="guide-icon magenta">🚀</div>
+            <div class="guide-text">
+              <strong>바주카포 (1방 파괴)</strong>
+              <span>바주카 아이템 획득! 거대·장거리 장애물도 <b>단 1발에 폭파!</b></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="start-best-box">
+          <span>🏆 내 최고 달린 기록:</span>
+          <strong id="start-best-score">0 m</strong>
+        </div>
+
+        <div class="modal-actions">
+          <button id="btn-start-game" class="neon-btn start-btn">질주 시작하기 (TOUCH START)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 일시정지 모달 -->
+    <div id="pause-modal" class="modal-overlay hidden">
+      <div class="modal-panel small-panel">
+        <h2 class="modal-heading">PAUSED</h2>
+        <p class="modal-desc">숨을 고르고 다시 네온 도로를 질주하세요.</p>
+        <div class="modal-actions vertical">
+          <button id="btn-resume" class="neon-btn start-btn">계속 달리기</button>
+          <button id="btn-toggle-hand-modal" class="neon-btn secondary-btn">좌/우 조작 버튼 위치 바꾸기</button>
+          <button id="btn-restart-pause" class="neon-btn danger-btn">처음부터 다시 시작</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 게임 오버 모달 -->
+    <div id="gameover-modal" class="modal-overlay hidden">
+      <div class="modal-panel">
+        <div id="new-record-ribbon" class="new-record-ribbon hidden">★ NEW BEST RECORD! 최고 기록 경신 ★</div>
+        <h2 class="modal-heading danger-text">CRASHED!</h2>
+        <p id="crash-reason" class="modal-desc">장애물과 충돌했습니다.</p>
+
+        <div class="result-stats-grid">
+          <div class="result-card highlight">
+            <span class="res-label">이번 주행 거리</span>
+            <strong id="res-distance" class="res-val">0 m</strong>
+          </div>
+          <div class="result-card best">
+            <span class="res-label">최고 달린 기록</span>
+            <strong id="res-best" class="res-val">0 m</strong>
+          </div>
+          <div class="result-card">
+            <span class="res-label">최고 도달 속도 / 난이도</span>
+            <strong id="res-level" class="res-val">LV.1 (120 km/h)</strong>
+          </div>
+          <div class="result-card">
+            <span class="res-label">파괴한 장애물</span>
+            <strong id="res-destroyed" class="res-val">0 개</strong>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button id="btn-retry" class="neon-btn start-btn">다시 질주하기 (RETRY)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/audio.js"></script>
+  <script src="js/road.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
