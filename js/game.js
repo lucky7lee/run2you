@@ -389,10 +389,12 @@ class Run2YouGame {
       headingEl.textContent = 'CRASHED!';
       headingEl.style.color = '';
       if (obstacle) {
-        if (obstacle.isOverhead) {
-          reasonEl.textContent = `[${obstacle.label}]에 부딪혔습니다! 땅 위(공중) 장애물은 점프하지 말고 그냥 달려야 통과됩니다!`;
+        if (obstacle.isTallOverhead) {
+          reasonEl.textContent = `초고층 공중 장애물에 부딪혔습니다! 높게 솟은 공중 장애물은 점프하지 말고 그냥 달려야 통과됩니다!`;
+        } else if (obstacle.isOverhead) {
+          reasonEl.textContent = `공중 장애물에 부딪혔습니다! 점프하지 않고 밑으로 지나가거나 더 높이 점프해 뛰어넘으세요!`;
         } else {
-          reasonEl.textContent = `[${obstacle.label}] 충돌! (${obstacle.jumpHint} 또는 무기 활용 · 주행 시간: ${this.formatTime(this.runTimeSeconds)})`;
+          reasonEl.textContent = `장애물과 충돌했습니다! (주행 시간: ${this.formatTime(this.runTimeSeconds)})`;
         }
       } else {
         reasonEl.textContent = '장애물과 충돌했습니다.';
@@ -415,10 +417,10 @@ class Run2YouGame {
   }
 
   getTargetFireHeight() {
-    // 전방 가장 가까운 장애물이 공중 장애물이면 발사 각도를 공중 장애물 높이로 자동 조준
+    // 전방 가장 가까운 장애물이 공중 장애물이면 발사 각도를 공중 장애물 하단/중심 높이로 자동 조준
     const aheadObs = this.obstacles.find((o) => o.worldX + o.width > this.bike.worldX);
     if (aheadObs && aheadObs.isOverhead) {
-      return aheadObs.bottomClearance + aheadObs.height * 0.5;
+      return aheadObs.bottomClearance + Math.min(20, aheadObs.height * 0.5);
     }
     return Math.max(14, Math.min(38, this.bike.airHeight + 14));
   }
@@ -567,13 +569,13 @@ class Run2YouGame {
     }
   }
 
-  // 레벨에 따라 단독 장애물, 2개 연속 결합, 3개 연속 결합, 또는 공중(점프금지) 장애물 선택
+  // 레벨에 따라 단독 장애물, 2개 연속 결합, 3개 연속 결합, 낮은 공중 장애물(뛰어넘거나 밑으로 통과), 또는 초고층 공중 장애물(점프 시 사망) 선택
   pickObstacleSpecForLevel(level) {
-    // 1) 레벨 2 이상부터 약 22% 확률로 '점프하면 죽고 그냥 달려야 통과되는' 땅 위(공중) 장애물 등장
-    if (level >= 2 && Math.random() < 0.22) {
-      const overheadPool = ['overhead_drone'];
-      if (level >= 4) overheadPool.push('overhead_saw');
-      if (level >= 8) overheadPool.push('overhead_barrier');
+    // 1) 레벨 2 이상부터 약 24% 확률로 땅 위(공중) 장애물 등장
+    if (level >= 2 && Math.random() < 0.24) {
+      const overheadPool = ['overhead_drone', 'overhead_saw']; // 낮아서 밑으로 가도 되고 점프로 뛰어넘어도 되는 공중 장애물
+      if (level >= 3) overheadPool.push('overhead_tall_laser'); // 아주 높아서 점프하면 무조건 부딪혀 죽는 공중 장애물
+      if (level >= 6) overheadPool.push('overhead_tall_monolith'); // 아주 높게 솟은 공중 가시 성벽
       return overheadPool[Math.floor(Math.random() * overheadPool.length)];
     }
 

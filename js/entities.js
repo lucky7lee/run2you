@@ -506,36 +506,48 @@ const OBSTACLE_TYPES = {
     isOverhead: false
   },
 
-  // 땅 위(허공)에 떠 있어서 점프하면 부딪혀 죽고, 그냥 달려야 밑으로 통과되는 공중 장애물 3종
+  // 땅 위(허공) 공중 장애물 4종:
+  // 1) 높지 않아서 그냥 지나가도 되고, 점프해서 아예 위로 뛰어넘어도 되는 낮은 공중 장애물 2종
   overhead_drone: {
     key: 'overhead_drone',
-    label: '공중 폭뢰 드론 (점프금지)',
-    jumpHint: '점프금지! 그냥통과',
-    width: 64,
-    height: 36,
-    bottomClearance: 28,
-    color: '#ff8800',
-    isOverhead: true
+    label: '낮은 공중 폭뢰 드론',
+    width: 52,
+    height: 24,
+    bottomClearance: 27,
+    color: '#ff9900',
+    isOverhead: true,
+    isTallOverhead: false
   },
   overhead_saw: {
     key: 'overhead_saw',
-    label: '공중 회전 톱날 (점프금지)',
-    jumpHint: '점프금지! 그냥통과',
-    width: 72,
-    height: 38,
-    bottomClearance: 28,
+    label: '낮은 공중 회전 톱날',
+    width: 56,
+    height: 25,
+    bottomClearance: 27,
     color: '#ffaa00',
-    isOverhead: true
+    isOverhead: true,
+    isTallOverhead: false
   },
-  overhead_barrier: {
-    key: 'overhead_barrier',
-    label: '공중 고압 전기장 (점프금지)',
-    jumpHint: '점프금지! 그냥통과',
-    width: 96,
-    height: 36,
-    bottomClearance: 28,
-    color: '#ff6600',
-    isOverhead: true
+  // 2) 아주 높게 솟아 있어서 점프하면 무조건 부딪혀 죽고, 그냥 달려야만 통과되는 초고층 공중 장애물 2종
+  overhead_tall_laser: {
+    key: 'overhead_tall_laser',
+    label: '초고층 공중 레이저 타워',
+    width: 64,
+    height: 165,
+    bottomClearance: 27,
+    color: '#ff3300',
+    isOverhead: true,
+    isTallOverhead: true
+  },
+  overhead_tall_monolith: {
+    key: 'overhead_tall_monolith',
+    label: '초고층 공중 가시 성벽',
+    width: 78,
+    height: 172,
+    bottomClearance: 27,
+    color: '#ff0044',
+    isOverhead: true,
+    isTallOverhead: true
   }
 };
 
@@ -550,26 +562,14 @@ class Obstacle {
     this.worldX = worldX;
     this.typeKey = first.key;
     this.isOverhead = Boolean(first.isOverhead);
+    this.isTallOverhead = Boolean(first.isTallOverhead);
     this.bottomClearance = first.bottomClearance || 0;
 
     // 2개나 3개가 붙어 있을 때 전체 폭과 최대 높이 계산
     this.width = this.subSpecs.reduce((sum, s) => sum + s.width, 0);
     this.height = Math.max(...this.subSpecs.map((s) => s.height));
     this.color = first.color;
-
-    if (this.isOverhead) {
-      this.label = first.label;
-      this.jumpHint = first.jumpHint;
-    } else if (this.clusterCount === 2) {
-      this.label = `2연속 장애물 (${this.subSpecs.map((s) => s.label.split(' ')[0]).join('+')})`;
-      this.jumpHint = '2연속·길게점프!';
-    } else if (this.clusterCount >= 3) {
-      this.label = `3연속 복합 장애물`;
-      this.jumpHint = '3연속·최대롱점프!';
-    } else {
-      this.label = first.label;
-      this.jumpHint = first.jumpHint;
-    }
+    this.label = first.label;
 
     this.maxHp = 3;
     this.hp = 3;
@@ -606,10 +606,14 @@ class Obstacle {
       return false;
     }
 
-    // 1. 땅 위(허공) 공중 장애물: 그냥 달리면(airHeight < 11) 안전 통과! 점프하면(airHeight >= 11) 충돌해서 사망!
+    // 1. 땅 위(허공) 공중 장애물 판정:
+    // - 점프하지 않고 그냥 달리면(bike.airHeight < 12) 하단 통로로 안전 통과!
+    // - 낮은 공중 장애물(topLimit ~ 51px)은 점프해서 아예 위로 뛰어넘으면(bike.airHeight > topLimit) 안전 통과!
+    // - 아주 높은 공중 장애물(topLimit ~ 195px)은 점프 시 무조건(12 <= airHeight <= 195) 부딪혀서 사망!
     if (this.isOverhead) {
+      const bottomLimit = 12;
       const topLimit = this.bottomClearance + this.height;
-      if (bike.airHeight >= 11 && bike.airHeight <= topLimit + 8) {
+      if (bike.airHeight >= bottomLimit && bike.airHeight <= topLimit) {
         return true;
       }
       return false;
@@ -831,8 +835,8 @@ class Obstacle {
     }
   }
 
-  // 공중(땅 위 허공) 점프 금지 장애물 렌더링
-  renderOverheadObstacle(ctx, sx, centerGroundY, road, canvasHeight) {
+  // 공중(땅 위 허공) 장애물 렌더링 (낮아서 뛰어넘거나 밑으로 지나가는 장애물 vs 아주 높게 솟은 장애물, 텍스트 없음)
+  renderOverheadObstacle(ctx, sx, centerGroundY) {
     const bottomY = centerGroundY - this.bottomClearance;
     const topY = bottomY - this.height;
     const cx = sx + this.width * 0.5;
@@ -840,9 +844,9 @@ class Obstacle {
 
     ctx.save();
 
-    // 1. 도로 바닥 위에 '그냥 주행 통과' 안전 통로 화살표 가이드 표시
-    ctx.strokeStyle = 'rgba(0, 255, 136, 0.55)';
-    ctx.lineWidth = 2;
+    // 1. 도로 바닥 위 하단 통과 가이드 점선 (텍스트 없이 심플한 라인으로만 표현)
+    ctx.strokeStyle = 'rgba(0, 255, 136, 0.45)';
+    ctx.lineWidth = 1.8;
     ctx.setLineDash([5, 4]);
     ctx.beginPath();
     ctx.moveTo(sx, centerGroundY - 3);
@@ -850,46 +854,44 @@ class Obstacle {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // 2. 공중 장애물 본체 (드론 / 공중 톱날 / 공중 고압 전기장)
     const activeColor = this.hitFlashTimer > 0 ? '#ffffff' : this.color;
     ctx.strokeStyle = activeColor;
-    ctx.fillStyle = 'rgba(70, 22, 0, 0.88)';
+    ctx.fillStyle = this.hitFlashTimer > 0 ? 'rgba(255,255,255,0.6)' : 'rgba(70, 14, 10, 0.88)';
     ctx.shadowColor = activeColor;
     ctx.shadowBlur = 12;
     ctx.lineWidth = 2.2;
 
     if (this.typeKey === 'overhead_drone') {
-      // 공중 폭뢰 드론 + 하단 스파이크
+      // 낮게 떠 있는 폭뢰 드론 (밑으로 그냥 지나가도 되고, 점프로 뛰어넘어도 됨)
       ctx.beginPath();
-      ctx.roundRect(sx + 6, topY + 4, this.width - 12, this.height - 10, 8);
+      ctx.roundRect(sx + 4, topY + 2, this.width - 8, this.height - 6, 7);
       ctx.fill();
       ctx.stroke();
 
-      // 하단 가시 (점프하면 찔리는 부분 강조)
       const spikes = 4;
-      const sw = (this.width - 12) / spikes;
+      const sw = (this.width - 8) / spikes;
       ctx.beginPath();
       for (let i = 0; i < spikes; i++) {
-        const x1 = sx + 6 + i * sw;
-        ctx.moveTo(x1, bottomY - 6);
+        const x1 = sx + 4 + i * sw;
+        ctx.moveTo(x1, bottomY - 4);
         ctx.lineTo(x1 + sw * 0.5, bottomY + 2);
-        ctx.lineTo(x1 + sw, bottomY - 6);
+        ctx.lineTo(x1 + sw, bottomY - 4);
       }
       ctx.stroke();
     } else if (this.typeKey === 'overhead_saw') {
-      // 공중 매달린 회전 톱날 2개
+      // 낮게 떠 있는 공중 회전 톱날 2개 (밑으로 지나가거나 점프로 뛰어넘기 가능)
       const saws = 2;
       const sw = this.width / saws;
       for (let s = 0; s < saws; s++) {
         const scx = sx + (s + 0.5) * sw;
-        const r = 16;
+        const r = 12;
         ctx.save();
         ctx.translate(scx, cy);
         ctx.rotate(-this.animTimer * 8);
         ctx.beginPath();
-        for (let i = 0; i < 16; i++) {
-          const rad = i % 2 === 0 ? r : r * 0.65;
-          const a = (i * Math.PI) / 8;
+        for (let i = 0; i < 14; i++) {
+          const rad = i % 2 === 0 ? r : r * 0.62;
+          const a = (i * Math.PI) / 7;
           if (i === 0) ctx.moveTo(Math.cos(a) * rad, Math.sin(a) * rad);
           else ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
         }
@@ -898,38 +900,80 @@ class Obstacle {
         ctx.stroke();
         ctx.restore();
       }
-    } else {
-      // 공중 고압 플라즈마 배리어
-      ctx.fillRect(sx, topY, this.width, 10);
-      ctx.strokeRect(sx, topY, this.width, 10);
-      ctx.fillRect(sx, bottomY - 8, this.width, 8);
-      ctx.strokeRect(sx, bottomY - 8, this.width, 8);
+    } else if (this.typeKey === 'overhead_tall_laser') {
+      // 아주 높게 솟은 공중 고압 레이저 게이트 (점프하면 무조건 걸려서 죽고 그냥 달려야만 통과됨)
+      ctx.fillRect(sx, topY, 10, this.height);
+      ctx.strokeRect(sx, topY, 10, this.height);
+      ctx.fillRect(sx + this.width - 10, topY, 10, this.height);
+      ctx.strokeRect(sx + this.width - 10, topY, 10, this.height);
 
-      ctx.strokeStyle = '#ffe600';
+      // 하단 경고 크로스바
+      ctx.fillRect(sx, bottomY - 10, this.width, 10);
+      ctx.strokeRect(sx, bottomY - 10, this.width, 10);
+
+      // 하늘 높이 촘촘하게 이어진 고압 레이저 그리드
+      ctx.strokeStyle = '#ff0044';
+      ctx.lineWidth = 2.2;
+      for (let y = bottomY - 22; y >= topY + 10; y -= 18) {
+        const jitter = Math.sin(this.animTimer * 22 + y) * 2.5;
+        ctx.beginPath();
+        ctx.moveTo(sx + 10, y);
+        ctx.lineTo(cx, y + jitter);
+        ctx.lineTo(sx + this.width - 10, y);
+        ctx.stroke();
+      }
+    } else {
+      // overhead_tall_monolith: 아주 높게 치솟은 공중 가시 성벽 기둥 (점프 시 무조건 충돌)
+      ctx.fillRect(sx + 6, topY, this.width - 12, this.height);
+      ctx.strokeRect(sx + 6, topY, this.width - 12, this.height);
+
+      // 내부 X자 철골 보강선
       ctx.beginPath();
-      for (let x = sx + 6; x < sx + this.width - 4; x += 12) {
-        ctx.moveTo(x, topY + 10);
-        ctx.lineTo(x + (Math.random() - 0.5) * 8, cy);
-        ctx.lineTo(x, bottomY - 8);
+      for (let y = bottomY; y > topY + 28; y -= 34) {
+        const nextY = Math.max(topY, y - 34);
+        ctx.moveTo(sx + 6, y);
+        ctx.lineTo(sx + this.width - 6, nextY);
+        ctx.moveTo(sx + this.width - 6, y);
+        ctx.lineTo(sx + 6, nextY);
+      }
+      ctx.stroke();
+
+      // 좌우 측면 및 하단 가시 돌기
+      ctx.beginPath();
+      for (let y = bottomY - 8; y > topY + 12; y -= 22) {
+        ctx.moveTo(sx + 6, y);
+        ctx.lineTo(sx - 3, y - 6);
+        ctx.lineTo(sx + 6, y - 12);
+
+        ctx.moveTo(sx + this.width - 6, y);
+        ctx.lineTo(sx + this.width + 3, y - 6);
+        ctx.lineTo(sx + this.width - 6, y - 12);
       }
       ctx.stroke();
     }
 
-    // 3. 상단 HP 게이지 및 '⬇ 점프금지! 그냥통과' 강조 배지
-    const badgeW = 92;
-    const badgeH = 15;
-    const badgeY = topY - 24;
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#ff8800';
-    ctx.beginPath();
-    ctx.roundRect(cx - badgeW * 0.5, badgeY, badgeW, badgeH, 6);
-    ctx.fill();
+    // 3. 체력(HP) 3칸 게이지만 심플하게 표시 (한글/설명글 완전 제거)
+    const pipW = 10;
+    const pipH = 4.5;
+    const pipGap = 3;
+    const totalPipW = this.maxHp * pipW + (this.maxHp - 1) * pipGap;
+    const startPipX = cx - totalPipW * 0.5;
+    const pipY = this.isTallOverhead ? bottomY - 18 : topY - 10;
 
-    ctx.fillStyle = '#050510';
-    ctx.font = '900 9px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('⬇ 점프금지·그냥통과', cx, badgeY + badgeH * 0.5 + 0.5);
+    ctx.shadowBlur = 0;
+    for (let i = 0; i < this.maxHp; i++) {
+      const px = startPipX + i * (pipW + pipGap);
+      if (i < this.hp) {
+        ctx.fillStyle = this.hp === 3 ? '#ff1e38' : this.hp === 2 ? '#ff7b00' : '#ffe600';
+        ctx.fillRect(px, pipY, pipW, pipH);
+      } else {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.fillRect(px, pipY, pipW, pipH);
+      }
+      ctx.strokeStyle = 'rgba(255, 120, 120, 0.6)';
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(px, pipY, pipW, pipH);
+    }
 
     ctx.restore();
   }
@@ -942,7 +986,7 @@ class Obstacle {
     const centerGroundY = road.getRoadY(centerWx, canvasHeight);
 
     if (this.isOverhead) {
-      this.renderOverheadObstacle(ctx, sx, centerGroundY, road, canvasHeight);
+      this.renderOverheadObstacle(ctx, sx, centerGroundY);
       return;
     }
 
@@ -957,9 +1001,9 @@ class Obstacle {
     // 하단 공통 노란/검정 위험 빗금 받침대
     this.drawHazardBase(ctx, sx, centerGroundY, this.width);
 
-    // 상단 3칸 체력(HP) 게이지 & 힌트 표시
+    // 상단 3칸 체력(HP) 게이지만 심플하게 표시 (한글/설명글 완전 제거)
     const uiX = sx + this.width * 0.5;
-    const uiY = centerGroundY - this.height - 14;
+    const uiY = centerGroundY - this.height - 12;
 
     const pipW = 10;
     const pipH = 4.5;
@@ -981,11 +1025,6 @@ class Obstacle {
       ctx.lineWidth = 0.8;
       ctx.strokeRect(px, uiY, pipW, pipH);
     }
-
-    ctx.font = '800 9px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = this.clusterCount >= 2 ? '#ffe600' : '#ff8090';
-    ctx.fillText(`⚠ ${this.jumpHint}`, uiX, uiY - 4);
 
     ctx.restore();
   }
