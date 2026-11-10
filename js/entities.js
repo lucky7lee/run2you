@@ -1,4 +1,4 @@
-// 소형화된 네온 오토바이, 10종의 다양한 장애물(위험 경고 테마), 명확히 구분되는 보급 아이템(총알/바주카포) 모듈
+// 소형 네온 바이크 + 10초 무적 비행기 변신, 1~3연속 결합 장애물 & 점프 금지 공중 장애물, 보급/비행기 아이템 모듈
 
 class NeonBike {
   constructor() {
@@ -10,18 +10,22 @@ class NeonBike {
     this.angle = 0;
     this.wheelRot = 0;
 
-    // 점프 물리 파라미터 (짧은 점프 vs 긴 점프 정밀 제어)
+    // 점프 물리 파라미터
     this.isGrounded = true;
     this.isHoldingJump = false;
     this.jumpHoldTime = 0;
-    this.maxJumpHoldTime = 0.33;
+    this.maxJumpHoldTime = 0.34;
     this.coyoteTimer = 0;
     this.jumpBufferTimer = 0;
 
-    // 축소된 차체 크기 (기존 대비 약 60% 크기로 아담하고 날렵하게 조정)
+    // 비행기 변신 무적 모드 타이머 (10초간 자동 무적 비행)
+    this.airplaneTimer = 0;
+    this.postFlightShieldTimer = 0;
+
+    // 아담하고 날렵한 차체 크기
     this.scale = 0.60;
     this.width = 34;
-    this.height = 20;
+    this.height = 18;
 
     this.trail = [];
     this.muzzleFlashTimer = 0;
@@ -38,11 +42,29 @@ class NeonBike {
     this.jumpHoldTime = 0;
     this.coyoteTimer = 0;
     this.jumpBufferTimer = 0;
+    this.airplaneTimer = 0;
+    this.postFlightShieldTimer = 0;
     this.trail = [];
     this.muzzleFlashTimer = 0;
   }
 
+  activateAirplane(durationSec = 10.0) {
+    this.airplaneTimer = durationSec;
+    this.isGrounded = false;
+    this.isHoldingJump = false;
+    this.jumpBufferTimer = 0;
+  }
+
+  isAirplaneMode() {
+    return this.airplaneTimer > 0;
+  }
+
+  isInvincible() {
+    return this.airplaneTimer > 0 || this.postFlightShieldTimer > 0;
+  }
+
   requestJump() {
+    if (this.isAirplaneMode()) return; // 비행기 모드에서는 별도 조작 불필요
     this.jumpBufferTimer = 0.12;
     this.isHoldingJump = true;
   }
@@ -50,7 +72,7 @@ class NeonBike {
   releaseJump() {
     if (this.isHoldingJump) {
       this.isHoldingJump = false;
-      if (!this.isGrounded && this.vy > 105) {
+      if (!this.isGrounded && !this.isAirplaneMode() && this.vy > 105) {
         this.vy *= 0.42;
       }
     }
@@ -59,7 +81,7 @@ class NeonBike {
   executeJump(road, canvasHeight) {
     const roadAngle = road.getRoadAngle(this.worldX, canvasHeight);
     const slopeBonus = roadAngle < 0 ? Math.abs(roadAngle) * 70 : 0;
-    this.vy = 425 + slopeBonus;
+    this.vy = 430 + slopeBonus;
     this.airHeight = 1;
     this.isGrounded = false;
     this.jumpHoldTime = 0;
@@ -69,71 +91,95 @@ class NeonBike {
   }
 
   getJumpHoldRatio() {
-    if (this.isGrounded) return 0;
+    if (this.isGrounded || this.isAirplaneMode()) return 0;
     return Math.min(1, this.jumpHoldTime / this.maxJumpHoldTime);
   }
 
   update(dt, speedPx, road, canvasHeight) {
-    this.worldX += speedPx * dt;
-    this.wheelRot += (speedPx * dt) / 9;
+    // 비행기 변신 중에는 초음속 부스트(1.32배 속도)로 자동 진행
+    const effectiveSpeed = this.isAirplaneMode() ? speedPx * 1.32 : speedPx;
+    this.worldX += effectiveSpeed * dt;
+    this.wheelRot += (effectiveSpeed * dt) / 9;
+
     if (this.muzzleFlashTimer > 0) this.muzzleFlashTimer -= dt;
     if (this.jumpBufferTimer > 0) this.jumpBufferTimer -= dt;
+    if (this.postFlightShieldTimer > 0) this.postFlightShieldTimer -= dt;
 
     const groundY = road.getRoadY(this.worldX, canvasHeight);
     const groundAngle = road.getRoadAngle(this.worldX, canvasHeight);
 
-    if (this.isGrounded) {
-      this.coyoteTimer = 0.085;
-    } else if (this.coyoteTimer > 0) {
-      this.coyoteTimer -= dt;
-    }
+    // 1. 비행기 변신 무적 자동비행 상태 처리
+    if (this.airplaneTimer > 0) {
+      this.airplaneTimer -= dt;
+      this.isGrounded = false;
+      // 도로 굴곡 위 약 68~86px 상공을 부드럽게 자동 순항
+      const targetCruiseHeight = 76 + Math.sin(this.worldX * 0.01) * 10;
+      this.airHeight += (targetCruiseHeight - this.airHeight) * Math.min(1, dt * 6.5);
+      this.vy = 0;
+      const targetJetAngle = groundAngle * 0.65 + Math.cos(this.worldX * 0.01) * 0.08;
+      this.angle += (targetJetAngle - this.angle) * Math.min(1, dt * 10);
 
-    if (this.jumpBufferTimer > 0 && (this.isGrounded || this.coyoteTimer > 0)) {
-      this.executeJump(road, canvasHeight);
-    }
-
-    if (!this.isGrounded) {
-      if (this.isHoldingJump && this.jumpHoldTime < this.maxJumpHoldTime && this.vy > 0) {
-        const prevHold = this.jumpHoldTime;
-        this.jumpHoldTime += dt;
-        this.vy += 1160 * dt;
-        if (prevHold < 0.13 && this.jumpHoldTime >= 0.13) {
-          window.soundManager.playJump(true);
-        }
-      }
-
-      const gravity = this.vy > 0 ? 1550 : 1900;
-      this.vy -= gravity * dt;
-      this.airHeight += this.vy * dt;
-
-      if (this.airHeight <= 0) {
-        this.airHeight = 0;
-        this.vy = 0;
-        this.isGrounded = true;
-        this.angle = groundAngle;
-      } else {
-        const targetAirAngle = groundAngle * 0.5 + Math.max(-0.42, Math.min(0.32, -this.vy * 0.00075 - 0.1));
-        this.angle += (targetAirAngle - this.angle) * Math.min(1, dt * 10);
+      // 10초 비행 종료 시 착륙 전환 및 1.5초 착지 보호막 부여
+      if (this.airplaneTimer <= 0) {
+        this.airplaneTimer = 0;
+        this.postFlightShieldTimer = 1.5;
       }
     } else {
-      this.airHeight = 0;
-      this.vy = 0;
-      this.angle += (groundAngle - this.angle) * Math.min(1, dt * 18);
+      // 2. 일반 오토바이 주행 및 점프 물리
+      if (this.isGrounded) {
+        this.coyoteTimer = 0.085;
+      } else if (this.coyoteTimer > 0) {
+        this.coyoteTimer -= dt;
+      }
+
+      if (this.jumpBufferTimer > 0 && (this.isGrounded || this.coyoteTimer > 0)) {
+        this.executeJump(road, canvasHeight);
+      }
+
+      if (!this.isGrounded) {
+        if (this.isHoldingJump && this.jumpHoldTime < this.maxJumpHoldTime && this.vy > 0) {
+          const prevHold = this.jumpHoldTime;
+          this.jumpHoldTime += dt;
+          this.vy += 1170 * dt;
+          if (prevHold < 0.13 && this.jumpHoldTime >= 0.13) {
+            window.soundManager.playJump(true);
+          }
+        }
+
+        const gravity = this.vy > 0 ? 1540 : 1880;
+        this.vy -= gravity * dt;
+        this.airHeight += this.vy * dt;
+
+        if (this.airHeight <= 0) {
+          this.airHeight = 0;
+          this.vy = 0;
+          this.isGrounded = true;
+          this.angle = groundAngle;
+        } else {
+          const targetAirAngle = groundAngle * 0.5 + Math.max(-0.42, Math.min(0.32, -this.vy * 0.00075 - 0.1));
+          this.angle += (targetAirAngle - this.angle) * Math.min(1, dt * 10);
+        }
+      } else {
+        this.airHeight = 0;
+        this.vy = 0;
+        this.angle += (groundAngle - this.angle) * Math.min(1, dt * 18);
+      }
     }
 
     this.y = groundY - this.airHeight;
 
     this.trail.push({
-      wx: this.worldX - 15,
-      y: this.y - 6,
-      alpha: 0.85,
+      wx: this.worldX - 16,
+      y: this.y - (this.isAirplaneMode() ? 2 : 6),
+      alpha: 0.9,
+      isAirplane: this.isAirplaneMode(),
       isLongJump: !this.isGrounded && this.jumpHoldTime > 0.12
     });
-    if (this.trail.length > 16) {
+    if (this.trail.length > 20) {
       this.trail.shift();
     }
     for (const t of this.trail) {
-      t.alpha -= dt * 3.4;
+      t.alpha -= dt * 3.2;
     }
   }
 
@@ -142,7 +188,7 @@ class NeonBike {
     const sy = this.y;
 
     // 1. 공중 점프 시 착지 기준선 가이드
-    if (!this.isGrounded) {
+    if (!this.isGrounded && !this.isAirplaneMode()) {
       ctx.save();
       ctx.beginPath();
       ctx.strokeStyle = this.jumpHoldTime > 0.12 ? 'rgba(57, 255, 20, 0.35)' : 'rgba(0, 243, 255, 0.28)';
@@ -155,7 +201,7 @@ class NeonBike {
       ctx.restore();
     }
 
-    // 2. 네온 배기 트레일
+    // 2. 네온 배기 트레일 (비행기 모드일 때는 황금/마젠타 부스터 궤적)
     if (this.trail.length > 1) {
       ctx.save();
       for (let i = 1; i < this.trail.length; i++) {
@@ -165,19 +211,40 @@ class NeonBike {
         ctx.beginPath();
         ctx.moveTo(p0.wx - cameraX, p0.y);
         ctx.lineTo(p1.wx - cameraX, p1.y);
-        ctx.strokeStyle = p1.isLongJump
-          ? `rgba(57, 255, 20, ${Math.max(0, p1.alpha)})`
-          : `rgba(0, 243, 255, ${Math.max(0, p1.alpha)})`;
-        ctx.lineWidth = p1.isLongJump ? 3.2 : 2.2;
+        if (p1.isAirplane) {
+          ctx.strokeStyle = `rgba(255, 215, 0, ${Math.max(0, p1.alpha)})`;
+          ctx.lineWidth = 5;
+        } else {
+          ctx.strokeStyle = p1.isLongJump
+            ? `rgba(57, 255, 20, ${Math.max(0, p1.alpha)})`
+            : `rgba(0, 243, 255, ${Math.max(0, p1.alpha)})`;
+          ctx.lineWidth = p1.isLongJump ? 3.2 : 2.2;
+        }
         ctx.stroke();
       }
       ctx.restore();
     }
 
-    // 3. 소형화된 네온 오토바이 본체 렌더링
+    // 3. 비행기 변신 상태일 때 초음속 네온 제트기 렌더링
+    if (this.isAirplaneMode()) {
+      this.renderAirplane(ctx, sx, sy);
+      return;
+    }
+
+    // 4. 일반 소형 네온 오토바이 렌더링
     ctx.save();
     ctx.translate(sx, sy);
     ctx.rotate(this.angle);
+
+    // 비행 종료 직후 1.5초 보호막 깜빡임 표시
+    if (this.postFlightShieldTimer > 0) {
+      ctx.strokeStyle = 'rgba(0, 255, 200, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, -10, 22, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     ctx.scale(this.scale, this.scale);
 
     const wheelRadius = 11;
@@ -185,7 +252,6 @@ class NeonBike {
     const frontWheelX = 20;
     const wheelY = -wheelRadius;
 
-    // 헤드라이트 빔
     const beamGrad = ctx.createLinearGradient(frontWheelX + 4, wheelY - 12, frontWheelX + 80, wheelY - 4);
     beamGrad.addColorStop(0, 'rgba(0, 243, 255, 0.38)');
     beamGrad.addColorStop(1, 'rgba(0, 243, 255, 0)');
@@ -200,7 +266,6 @@ class NeonBike {
     this.drawNeonWheel(ctx, rearWheelX, wheelY, wheelRadius, '#00f3ff');
     this.drawNeonWheel(ctx, frontWheelX, wheelY, wheelRadius, '#00f3ff');
 
-    // 바이크 차체 프레임
     ctx.shadowColor = '#00f3ff';
     ctx.shadowBlur = 10;
     ctx.strokeStyle = '#00f3ff';
@@ -221,7 +286,6 @@ class NeonBike {
     ctx.closePath();
     ctx.stroke();
 
-    // 사이버 라이더
     ctx.strokeStyle = '#00ffcc';
     ctx.shadowColor = '#00ffcc';
     ctx.lineWidth = 2.6;
@@ -254,6 +318,75 @@ class NeonBike {
     ctx.restore();
   }
 
+  // 10초 무적 비행기(초음속 네온 제트기) 렌더링
+  renderAirplane(ctx, sx, sy) {
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(this.angle);
+
+    // 무적 보호막 에너지 링
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.65)';
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.10)';
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 16;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(2, -2, 34, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 후방 제트 엔진 애프터버너 불꽃
+    ctx.fillStyle = '#ff9900';
+    ctx.beginPath();
+    ctx.moveTo(-22, -2);
+    ctx.lineTo(-42 - Math.random() * 14, -7);
+    ctx.lineTo(-36 - Math.random() * 10, -2);
+    ctx.lineTo(-42 - Math.random() * 14, 3);
+    ctx.closePath();
+    ctx.fill();
+
+    // 제트기 동체 및 델타 날개
+    ctx.fillStyle = '#0a192f';
+    ctx.strokeStyle = '#00f3ff';
+    ctx.shadowColor = '#00f3ff';
+    ctx.shadowBlur = 12;
+    ctx.lineWidth = 2.2;
+
+    ctx.beginPath();
+    ctx.moveTo(28, -2); // 기수(Nose)
+    ctx.lineTo(8, -8);
+    ctx.lineTo(-10, -18); // 상단 주익/수직미익
+    ctx.lineTo(-22, -16);
+    ctx.lineTo(-16, -6);
+    ctx.lineTo(-24, -4);
+    ctx.lineTo(-24, 2);
+    ctx.lineTo(-8, 6);
+    ctx.lineTo(-16, 13); // 하단 날개
+    ctx.lineTo(-4, 12);
+    ctx.lineTo(10, 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 조종석 캐노피 글래스
+    ctx.fillStyle = '#ffd700';
+    ctx.beginPath();
+    ctx.ellipse(8, -4, 7, 3, -0.1, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+
+    // 상단 남은 비행 시간 카운트다운 표시
+    ctx.save();
+    ctx.font = '900 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffd700';
+    ctx.shadowColor = '#000000';
+    ctx.shadowBlur = 6;
+    ctx.fillText(`✈️ 무적 비행 ${this.airplaneTimer.toFixed(1)}s`, sx, sy - 26);
+    ctx.restore();
+  }
+
   drawNeonWheel(ctx, x, y, r, color) {
     ctx.save();
     ctx.translate(x, y);
@@ -280,7 +413,7 @@ class NeonBike {
   }
 }
 
-// 10종의 다양한 장애물 정의 (위험물 전용 적색/다크크림슨/주황 경고 컬러 및 고유 외형)
+// 지상 장애물 10종 + 공중(땅 위 허공) 점프 금지 장애물 3종 정의
 const OBSTACLE_TYPES = {
   short_spike: {
     key: 'short_spike',
@@ -289,7 +422,7 @@ const OBSTACLE_TYPES = {
     width: 38,
     height: 30,
     color: '#ff1e42',
-    minLevel: 1
+    isOverhead: false
   },
   saw_blade: {
     key: 'saw_blade',
@@ -298,92 +431,145 @@ const OBSTACLE_TYPES = {
     width: 42,
     height: 34,
     color: '#ff3b1f',
-    minLevel: 1
+    isOverhead: false
   },
   laser_hurdle: {
     key: 'laser_hurdle',
     label: '고압 레이저 허들',
     jumpHint: '중간점프',
-    width: 64,
-    height: 36,
+    width: 58,
+    height: 35,
     color: '#ff0055',
-    minLevel: 2
+    isOverhead: false
   },
   medium_crate: {
     key: 'medium_crate',
     label: '강철 장갑 바리케이드',
     jumpHint: '중간점프',
-    width: 78,
+    width: 68,
     height: 34,
     color: '#ff5500',
-    minLevel: 3
+    isOverhead: false
   },
   flame_geyser: {
     key: 'flame_geyser',
     label: '플라즈마 화염 분출기',
     jumpHint: '중간점프',
-    width: 86,
-    height: 40,
+    width: 76,
+    height: 38,
     color: '#ff2a00',
-    minLevel: 5
+    isOverhead: false
   },
   long_trench: {
     key: 'long_trench',
     label: '장거리 가시 지대',
     jumpHint: '길게점프!',
-    width: 132,
+    width: 128,
     height: 30,
     color: '#ff1744',
-    minLevel: 7
+    isOverhead: false
   },
   crystal_cluster: {
     key: 'crystal_cluster',
     label: '블러드 크리스탈 암석군',
     jumpHint: '길게점프!',
-    width: 144,
-    height: 38,
+    width: 136,
+    height: 36,
     color: '#e60039',
-    minLevel: 10
+    isOverhead: false
   },
   tall_pylon: {
     key: 'tall_pylon',
     label: '테슬라 고압 타워',
     jumpHint: '높게점프!',
-    width: 48,
-    height: 54,
+    width: 46,
+    height: 52,
     color: '#ff0066',
-    minLevel: 14
+    isOverhead: false
   },
   spider_mech: {
     key: 'spider_mech',
     label: '보초 스파이더 포탑',
     jumpHint: '길게점프!',
-    width: 112,
-    height: 44,
+    width: 96,
+    height: 42,
     color: '#ff3300',
-    minLevel: 18
+    isOverhead: false
   },
   mega_fortress: {
     key: 'mega_fortress',
     label: '초장거리 중장갑 벙커',
     jumpHint: '최대롱점프!',
-    width: 168,
-    height: 42,
+    width: 162,
+    height: 40,
     color: '#ff0033',
-    minLevel: 24
+    isOverhead: false
+  },
+
+  // 땅 위(허공)에 떠 있어서 점프하면 부딪혀 죽고, 그냥 달려야 밑으로 통과되는 공중 장애물 3종
+  overhead_drone: {
+    key: 'overhead_drone',
+    label: '공중 폭뢰 드론 (점프금지)',
+    jumpHint: '점프금지! 그냥통과',
+    width: 64,
+    height: 36,
+    bottomClearance: 28,
+    color: '#ff8800',
+    isOverhead: true
+  },
+  overhead_saw: {
+    key: 'overhead_saw',
+    label: '공중 회전 톱날 (점프금지)',
+    jumpHint: '점프금지! 그냥통과',
+    width: 72,
+    height: 38,
+    bottomClearance: 28,
+    color: '#ffaa00',
+    isOverhead: true
+  },
+  overhead_barrier: {
+    key: 'overhead_barrier',
+    label: '공중 고압 전기장 (점프금지)',
+    jumpHint: '점프금지! 그냥통과',
+    width: 96,
+    height: 36,
+    bottomClearance: 28,
+    color: '#ff6600',
+    isOverhead: true
   }
 };
 
 class Obstacle {
-  constructor(worldX, typeKey) {
-    const spec = OBSTACLE_TYPES[typeKey] || OBSTACLE_TYPES.short_spike;
+  // subTypes 배열로 1개 단독, 또는 2개·3개가 동시에 다닥다닥 붙어 있는 복합 장애물 생성 지원
+  constructor(worldX, typeOrSubTypes) {
+    const subKeys = Array.isArray(typeOrSubTypes) ? typeOrSubTypes : [typeOrSubTypes];
+    this.subSpecs = subKeys.map((k) => OBSTACLE_TYPES[k] || OBSTACLE_TYPES.short_spike);
+    this.clusterCount = this.subSpecs.length;
+
+    const first = this.subSpecs[0];
     this.worldX = worldX;
-    this.typeKey = spec.key;
-    this.label = spec.label;
-    this.jumpHint = spec.jumpHint;
-    this.width = spec.width;
-    this.height = spec.height;
-    this.color = spec.color;
+    this.typeKey = first.key;
+    this.isOverhead = Boolean(first.isOverhead);
+    this.bottomClearance = first.bottomClearance || 0;
+
+    // 2개나 3개가 붙어 있을 때 전체 폭과 최대 높이 계산
+    this.width = this.subSpecs.reduce((sum, s) => sum + s.width, 0);
+    this.height = Math.max(...this.subSpecs.map((s) => s.height));
+    this.color = first.color;
+
+    if (this.isOverhead) {
+      this.label = first.label;
+      this.jumpHint = first.jumpHint;
+    } else if (this.clusterCount === 2) {
+      this.label = `2연속 장애물 (${this.subSpecs.map((s) => s.label.split(' ')[0]).join('+')})`;
+      this.jumpHint = '2연속·길게점프!';
+    } else if (this.clusterCount >= 3) {
+      this.label = `3연속 복합 장애물`;
+      this.jumpHint = '3연속·최대롱점프!';
+    } else {
+      this.label = first.label;
+      this.jumpHint = first.jumpHint;
+    }
 
     this.maxHp = 3;
     this.hp = 3;
@@ -409,7 +595,7 @@ class Obstacle {
   }
 
   checkCollision(bike) {
-    const bikeHalfW = 10; // 작아진 오토바이에 맞춘 정밀 히트박스
+    const bikeHalfW = 10;
     const bikeLeft = bike.worldX - bikeHalfW;
     const bikeRight = bike.worldX + bikeHalfW;
 
@@ -420,13 +606,22 @@ class Obstacle {
       return false;
     }
 
+    // 1. 땅 위(허공) 공중 장애물: 그냥 달리면(airHeight < 11) 안전 통과! 점프하면(airHeight >= 11) 충돌해서 사망!
+    if (this.isOverhead) {
+      const topLimit = this.bottomClearance + this.height;
+      if (bike.airHeight >= 11 && bike.airHeight <= topLimit + 8) {
+        return true;
+      }
+      return false;
+    }
+
+    // 2. 일반 지상 장애물: 점프 높이가 장애물 높이보다 낮으면 충돌
     if (bike.airHeight < this.height - 5) {
       return true;
     }
     return false;
   }
 
-  // 모든 장애물 하단에 공통 '위험 경고 받침대(노란/검정 빗금)'를 그려 아이템과 한눈에 구분되게 함
   drawHazardBase(ctx, sx, groundY, width) {
     const baseH = 6;
     ctx.save();
@@ -436,7 +631,6 @@ class Obstacle {
     ctx.fillRect(sx, groundY - baseH, width, baseH);
     ctx.strokeRect(sx, groundY - baseH, width, baseH);
 
-    // 노란색 위험 사선 줄무늬
     ctx.strokeStyle = '#ffcc00';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -448,45 +642,40 @@ class Obstacle {
     ctx.restore();
   }
 
-  render(ctx, cameraX, road, canvasHeight) {
-    const sx = this.worldX - cameraX;
-    if (sx + this.width < -60 || sx > ctx.canvas.width + 80) return;
-
-    const centerWx = this.worldX + this.width * 0.5;
+  // 개별 모양 렌더링 헬퍼 (1~3개 연속 붙어 있을 때 각각 그리기 위함)
+  renderSingleGroundShape(ctx, spec, subWorldX, cameraX, road, canvasHeight) {
+    const sx = subWorldX - cameraX;
+    const w = spec.width;
+    const h = spec.height;
+    const centerWx = subWorldX + w * 0.5;
     const centerGroundY = road.getRoadY(centerWx, canvasHeight);
 
-    ctx.save();
-    const activeColor = this.hitFlashTimer > 0 ? '#ffffff' : this.color;
+    const activeColor = this.hitFlashTimer > 0 ? '#ffffff' : spec.color;
     ctx.strokeStyle = activeColor;
     ctx.fillStyle = this.hitFlashTimer > 0 ? 'rgba(255,255,255,0.6)' : 'rgba(65, 6, 16, 0.85)';
     ctx.shadowColor = activeColor;
-    ctx.shadowBlur = this.hitFlashTimer > 0 ? 20 : 10;
-    ctx.lineWidth = 2.2;
+    ctx.shadowBlur = this.hitFlashTimer > 0 ? 18 : 9;
+    ctx.lineWidth = 2.1;
 
-    if (this.typeKey === 'short_spike') {
-      // 1. 삼각 가시 트랩
+    if (spec.key === 'short_spike') {
       const count = 2;
-      const stepW = this.width / count;
+      const stepW = w / count;
       ctx.beginPath();
       for (let i = 0; i < count; i++) {
-        const wx1 = this.worldX + i * stepW;
+        const wx1 = subWorldX + i * stepW;
         const wxMid = wx1 + stepW * 0.5;
         const wx2 = wx1 + stepW;
-        const y1 = road.getRoadY(wx1, canvasHeight);
-        const yMid = road.getRoadY(wxMid, canvasHeight) - this.height;
-        const y2 = road.getRoadY(wx2, canvasHeight);
-        ctx.moveTo(wx1 - cameraX, y1);
-        ctx.lineTo(wxMid - cameraX, yMid);
-        ctx.lineTo(wx2 - cameraX, y2);
+        ctx.moveTo(wx1 - cameraX, road.getRoadY(wx1, canvasHeight));
+        ctx.lineTo(wxMid - cameraX, road.getRoadY(wxMid, canvasHeight) - h);
+        ctx.lineTo(wx2 - cameraX, road.getRoadY(wx2, canvasHeight));
       }
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-    } else if (this.typeKey === 'saw_blade') {
-      // 2. 회전 원형 톱날
-      const cx = sx + this.width * 0.5;
-      const cy = centerGroundY - this.height * 0.45;
-      const r = this.height * 0.52;
+    } else if (spec.key === 'saw_blade') {
+      const cx = sx + w * 0.5;
+      const cy = centerGroundY - h * 0.45;
+      const r = h * 0.52;
       const teeth = 10;
       ctx.save();
       ctx.translate(cx, cy);
@@ -503,61 +692,50 @@ class Obstacle {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-
-      ctx.fillStyle = '#ff1e38';
-      ctx.beginPath();
-      ctx.arc(0, 0, 5, 0, Math.PI * 2);
-      ctx.fill();
       ctx.restore();
-    } else if (this.typeKey === 'laser_hurdle') {
-      // 3. 고압 레이저 허들 (양쪽 기둥 + 붉은 레이저 빔 3줄)
-      const leftY = road.getRoadY(this.worldX + 4, canvasHeight);
-      const rightY = road.getRoadY(this.worldX + this.width - 4, canvasHeight);
-      ctx.fillRect(sx, leftY - this.height, 8, this.height);
-      ctx.strokeRect(sx, leftY - this.height, 8, this.height);
-      ctx.fillRect(sx + this.width - 8, rightY - this.height, 8, this.height);
-      ctx.strokeRect(sx + this.width - 8, rightY - this.height, 8, this.height);
+    } else if (spec.key === 'laser_hurdle') {
+      const leftY = road.getRoadY(subWorldX + 4, canvasHeight);
+      const rightY = road.getRoadY(subWorldX + w - 4, canvasHeight);
+      ctx.fillRect(sx, leftY - h, 7, h);
+      ctx.strokeRect(sx, leftY - h, 7, h);
+      ctx.fillRect(sx + w - 7, rightY - h, 7, h);
+      ctx.strokeRect(sx + w - 7, rightY - h, 7, h);
 
       ctx.strokeStyle = '#ff0044';
-      ctx.lineWidth = 2.5;
       for (let b = 1; b <= 3; b++) {
-        const hRatio = (b / 4) * this.height;
+        const hRatio = (b / 4) * h;
         const jitter = Math.sin(this.animTimer * 24 + b) * 2;
         ctx.beginPath();
-        ctx.moveTo(sx + 8, leftY - hRatio);
-        ctx.lineTo(sx + this.width * 0.5, (leftY + rightY) * 0.5 - hRatio + jitter);
-        ctx.lineTo(sx + this.width - 8, rightY - hRatio);
+        ctx.moveTo(sx + 7, leftY - hRatio);
+        ctx.lineTo(sx + w * 0.5, (leftY + rightY) * 0.5 - hRatio + jitter);
+        ctx.lineTo(sx + w - 7, rightY - hRatio);
         ctx.stroke();
       }
-    } else if (this.typeKey === 'medium_crate') {
-      // 4. 강철 장갑 바리케이드
+    } else if (spec.key === 'medium_crate') {
       const boxes = 2;
-      const bw = this.width / boxes;
+      const bw = w / boxes;
       for (let i = 0; i < boxes; i++) {
-        const bx = this.worldX + i * bw;
+        const bx = subWorldX + i * bw;
         const by = road.getRoadY(bx + bw * 0.5, canvasHeight);
-        const rx = bx - cameraX + 2;
-        const ry = by - this.height;
-        const rw = bw - 4;
-        const rh = this.height;
-        ctx.fillRect(rx, ry, rw, rh);
-        ctx.strokeRect(rx, ry, rw, rh);
+        const rx = bx - cameraX + 1.5;
+        const ry = by - h;
+        const rw = bw - 3;
+        ctx.fillRect(rx, ry, rw, h);
+        ctx.strokeRect(rx, ry, rw, h);
         ctx.beginPath();
         ctx.moveTo(rx, ry);
-        ctx.lineTo(rx + rw, ry + rh);
+        ctx.lineTo(rx + rw, ry + h);
         ctx.moveTo(rx + rw, ry);
-        ctx.lineTo(rx, ry + rh);
+        ctx.lineTo(rx, ry + h);
         ctx.stroke();
       }
-    } else if (this.typeKey === 'flame_geyser') {
-      // 5. 플라즈마 화염 분출기 (바닥 노즐 3개에서 화염 기둥 분출)
+    } else if (spec.key === 'flame_geyser') {
       const nozzles = 3;
-      const nw = this.width / nozzles;
+      const nw = w / nozzles;
       for (let i = 0; i < nozzles; i++) {
         const nx = sx + i * nw + nw * 0.5;
-        const ny = road.getRoadY(this.worldX + (i + 0.5) * nw, canvasHeight);
-        const flameH = this.height * (0.82 + Math.sin(this.animTimer * 14 + i * 2) * 0.18);
-
+        const ny = road.getRoadY(subWorldX + (i + 0.5) * nw, canvasHeight);
+        const flameH = h * (0.82 + Math.sin(this.animTimer * 14 + i * 2) * 0.18);
         ctx.fillStyle = 'rgba(255, 60, 0, 0.75)';
         ctx.beginPath();
         ctx.moveTo(nx - nw * 0.36, ny - 6);
@@ -567,33 +745,28 @@ class Obstacle {
         ctx.fill();
         ctx.stroke();
       }
-    } else if (this.typeKey === 'long_trench') {
-      // 6. 장거리 가시 지대
+    } else if (spec.key === 'long_trench') {
       const spikes = 6;
-      const stepW = this.width / spikes;
+      const stepW = w / spikes;
       ctx.beginPath();
-      const firstY = road.getRoadY(this.worldX, canvasHeight);
-      ctx.moveTo(sx, firstY);
+      ctx.moveTo(sx, road.getRoadY(subWorldX, canvasHeight));
       for (let i = 0; i < spikes; i++) {
-        const wxMid = this.worldX + (i + 0.5) * stepW;
-        const wxEnd = this.worldX + (i + 1) * stepW;
-        const yMid = road.getRoadY(wxMid, canvasHeight) - this.height;
-        const yEnd = road.getRoadY(wxEnd, canvasHeight);
-        ctx.lineTo(wxMid - cameraX, yMid);
-        ctx.lineTo(wxEnd - cameraX, yEnd);
+        const wxMid = subWorldX + (i + 0.5) * stepW;
+        const wxEnd = subWorldX + (i + 1) * stepW;
+        ctx.lineTo(wxMid - cameraX, road.getRoadY(wxMid, canvasHeight) - h);
+        ctx.lineTo(wxEnd - cameraX, road.getRoadY(wxEnd, canvasHeight));
       }
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-    } else if (this.typeKey === 'crystal_cluster') {
-      // 7. 블러드 크리스탈 암석군 (비대칭 수정 기둥 5개)
+    } else if (spec.key === 'crystal_cluster') {
       const peaks = [0.75, 1.0, 0.68, 0.95, 0.8];
-      const pw = this.width / peaks.length;
+      const pw = w / peaks.length;
       for (let i = 0; i < peaks.length; i++) {
-        const wx = this.worldX + (i + 0.5) * pw;
+        const wx = subWorldX + (i + 0.5) * pw;
         const gy = road.getRoadY(wx, canvasHeight);
         const px = wx - cameraX;
-        const ph = this.height * peaks[i];
+        const ph = h * peaks[i];
         ctx.beginPath();
         ctx.moveTo(px - pw * 0.48, gy);
         ctx.lineTo(px - pw * 0.2, gy - ph * 0.85);
@@ -603,81 +776,188 @@ class Obstacle {
         ctx.fill();
         ctx.stroke();
       }
-    } else if (this.typeKey === 'tall_pylon') {
-      // 8. 테슬라 고압 타워
+    } else if (spec.key === 'tall_pylon') {
       const by = centerGroundY;
-      const rx = sx + 8;
-      const rw = this.width - 16;
-      const ry = by - this.height;
-      ctx.fillRect(rx, ry + 10, rw, this.height - 10);
-      ctx.strokeRect(rx, ry + 10, rw, this.height - 10);
-      for (let h = 14; h < this.height - 10; h += 12) {
-        ctx.beginPath();
-        ctx.moveTo(rx - 5, by - h);
-        ctx.lineTo(rx + rw + 5, by - h);
-        ctx.stroke();
-      }
-      // 상단 고압 코일 구체
+      const rx = sx + 7;
+      const rw = w - 14;
+      const ry = by - h;
+      ctx.fillRect(rx, ry + 10, rw, h - 10);
+      ctx.strokeRect(rx, ry + 10, rw, h - 10);
       ctx.fillStyle = '#ff0055';
       ctx.beginPath();
-      ctx.arc(sx + this.width * 0.5, ry + 8, 8, 0, Math.PI * 2);
+      ctx.arc(sx + w * 0.5, ry + 8, 7, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-    } else if (this.typeKey === 'spider_mech') {
-      // 9. 보초 스파이더 포탑
-      const cx = sx + this.width * 0.5;
-      const cy = centerGroundY - this.height * 0.58;
-      // 4개의 기계 다리
+    } else if (spec.key === 'spider_mech') {
+      const cx = sx + w * 0.5;
+      const cy = centerGroundY - h * 0.58;
       ctx.beginPath();
       const legOffsets = [-0.42, -0.22, 0.22, 0.42];
       for (const off of legOffsets) {
-        const footX = cx + this.width * off;
-        const kneeX = cx + this.width * (off * 0.65);
-        const footY = road.getRoadY(this.worldX + this.width * (0.5 + off), canvasHeight);
+        const footX = cx + w * off;
+        const kneeX = cx + w * (off * 0.65);
+        const footY = road.getRoadY(subWorldX + w * (0.5 + off), canvasHeight);
         ctx.moveTo(cx, cy);
-        ctx.lineTo(kneeX, cy - 10);
+        ctx.lineTo(kneeX, cy - 9);
         ctx.lineTo(footX, footY);
       }
       ctx.stroke();
 
-      // 포탑 돔 몸체 & 붉은 센서 눈
       ctx.beginPath();
-      ctx.arc(cx, cy, 16, Math.PI, 0);
-      ctx.lineTo(cx + 18, cy + 6);
-      ctx.lineTo(cx - 18, cy + 6);
+      ctx.arc(cx, cy, 14, Math.PI, 0);
+      ctx.lineTo(cx + 16, cy + 5);
+      ctx.lineTo(cx - 16, cy + 5);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-
-      ctx.fillStyle = '#ff0000';
-      ctx.beginPath();
-      ctx.arc(cx - 5, cy - 3, 4, 0, Math.PI * 2);
-      ctx.fill();
     } else {
-      // 10. 초장거리 중장갑 벙커
       const segs = 4;
-      const sw = this.width / segs;
+      const sw = w / segs;
       ctx.beginPath();
       for (let i = 0; i <= segs; i++) {
-        const wx = this.worldX + i * sw;
+        const wx = subWorldX + i * sw;
         const gy = road.getRoadY(wx, canvasHeight);
         if (i === 0) ctx.moveTo(wx - cameraX, gy);
         else ctx.lineTo(wx - cameraX, gy);
       }
       for (let i = segs; i >= 0; i--) {
-        const wx = this.worldX + i * sw;
-        const gy = road.getRoadY(wx, canvasHeight) - this.height - (i % 2 === 1 ? 7 : 0);
+        const wx = subWorldX + i * sw;
+        const gy = road.getRoadY(wx, canvasHeight) - h - (i % 2 === 1 ? 6 : 0);
         ctx.lineTo(wx - cameraX, gy);
       }
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
     }
+  }
 
-    // 하단 노란/검정 위험 경고 줄무늬 받침대
+  // 공중(땅 위 허공) 점프 금지 장애물 렌더링
+  renderOverheadObstacle(ctx, sx, centerGroundY, road, canvasHeight) {
+    const bottomY = centerGroundY - this.bottomClearance;
+    const topY = bottomY - this.height;
+    const cx = sx + this.width * 0.5;
+    const cy = (bottomY + topY) * 0.5;
+
+    ctx.save();
+
+    // 1. 도로 바닥 위에 '그냥 주행 통과' 안전 통로 화살표 가이드 표시
+    ctx.strokeStyle = 'rgba(0, 255, 136, 0.55)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(sx, centerGroundY - 3);
+    ctx.lineTo(sx + this.width, centerGroundY - 3);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 2. 공중 장애물 본체 (드론 / 공중 톱날 / 공중 고압 전기장)
+    const activeColor = this.hitFlashTimer > 0 ? '#ffffff' : this.color;
+    ctx.strokeStyle = activeColor;
+    ctx.fillStyle = 'rgba(70, 22, 0, 0.88)';
+    ctx.shadowColor = activeColor;
+    ctx.shadowBlur = 12;
+    ctx.lineWidth = 2.2;
+
+    if (this.typeKey === 'overhead_drone') {
+      // 공중 폭뢰 드론 + 하단 스파이크
+      ctx.beginPath();
+      ctx.roundRect(sx + 6, topY + 4, this.width - 12, this.height - 10, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      // 하단 가시 (점프하면 찔리는 부분 강조)
+      const spikes = 4;
+      const sw = (this.width - 12) / spikes;
+      ctx.beginPath();
+      for (let i = 0; i < spikes; i++) {
+        const x1 = sx + 6 + i * sw;
+        ctx.moveTo(x1, bottomY - 6);
+        ctx.lineTo(x1 + sw * 0.5, bottomY + 2);
+        ctx.lineTo(x1 + sw, bottomY - 6);
+      }
+      ctx.stroke();
+    } else if (this.typeKey === 'overhead_saw') {
+      // 공중 매달린 회전 톱날 2개
+      const saws = 2;
+      const sw = this.width / saws;
+      for (let s = 0; s < saws; s++) {
+        const scx = sx + (s + 0.5) * sw;
+        const r = 16;
+        ctx.save();
+        ctx.translate(scx, cy);
+        ctx.rotate(-this.animTimer * 8);
+        ctx.beginPath();
+        for (let i = 0; i < 16; i++) {
+          const rad = i % 2 === 0 ? r : r * 0.65;
+          const a = (i * Math.PI) / 8;
+          if (i === 0) ctx.moveTo(Math.cos(a) * rad, Math.sin(a) * rad);
+          else ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    } else {
+      // 공중 고압 플라즈마 배리어
+      ctx.fillRect(sx, topY, this.width, 10);
+      ctx.strokeRect(sx, topY, this.width, 10);
+      ctx.fillRect(sx, bottomY - 8, this.width, 8);
+      ctx.strokeRect(sx, bottomY - 8, this.width, 8);
+
+      ctx.strokeStyle = '#ffe600';
+      ctx.beginPath();
+      for (let x = sx + 6; x < sx + this.width - 4; x += 12) {
+        ctx.moveTo(x, topY + 10);
+        ctx.lineTo(x + (Math.random() - 0.5) * 8, cy);
+        ctx.lineTo(x, bottomY - 8);
+      }
+      ctx.stroke();
+    }
+
+    // 3. 상단 HP 게이지 및 '⬇ 점프금지! 그냥통과' 강조 배지
+    const badgeW = 92;
+    const badgeH = 15;
+    const badgeY = topY - 24;
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.roundRect(cx - badgeW * 0.5, badgeY, badgeW, badgeH, 6);
+    ctx.fill();
+
+    ctx.fillStyle = '#050510';
+    ctx.font = '900 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⬇ 점프금지·그냥통과', cx, badgeY + badgeH * 0.5 + 0.5);
+
+    ctx.restore();
+  }
+
+  render(ctx, cameraX, road, canvasHeight) {
+    const sx = this.worldX - cameraX;
+    if (sx + this.width < -60 || sx > ctx.canvas.width + 80) return;
+
+    const centerWx = this.worldX + this.width * 0.5;
+    const centerGroundY = road.getRoadY(centerWx, canvasHeight);
+
+    if (this.isOverhead) {
+      this.renderOverheadObstacle(ctx, sx, centerGroundY, road, canvasHeight);
+      return;
+    }
+
+    ctx.save();
+    // 1~3개 연속 붙어 있는 각 서브 장애물 렌더링
+    let offsetWx = this.worldX;
+    for (const spec of this.subSpecs) {
+      this.renderSingleGroundShape(ctx, spec, offsetWx, cameraX, road, canvasHeight);
+      offsetWx += spec.width;
+    }
+
+    // 하단 공통 노란/검정 위험 빗금 받침대
     this.drawHazardBase(ctx, sx, centerGroundY, this.width);
 
-    // 상단 3칸 체력(HP) 게이지 & 붉은 '⚠ 위험' 태그
+    // 상단 3칸 체력(HP) 게이지 & 힌트 표시
     const uiX = sx + this.width * 0.5;
     const uiY = centerGroundY - this.height - 14;
 
@@ -704,18 +984,17 @@ class Obstacle {
 
     ctx.font = '800 9px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#ff8090';
+    ctx.fillStyle = this.clusterCount >= 2 ? '#ffe600' : '#ff8090';
     ctx.fillText(`⚠ ${this.jumpHint}`, uiX, uiY - 4);
 
     ctx.restore();
   }
 }
 
-// 도로 선 곡면을 따라 날아가는 총알 & 바주카포 발사체
 class Projectile {
   constructor(worldX, heightOffset, type) {
     this.worldX = worldX;
-    this.heightOffset = Math.max(12, Math.min(40, heightOffset));
+    this.heightOffset = Math.max(12, Math.min(55, heightOffset));
     this.type = type;
     this.speed = type === 'bullet' ? 980 : 760;
     this.damage = type === 'bullet' ? 1 : 3;
@@ -793,15 +1072,15 @@ class Projectile {
   }
 }
 
-// 장애물과 한눈에 구분되는 '공중 부양 홀로그램 보급 상자(총알 탄약통 / 바주카 런처)' 아이템
+// 보급 아이템 (총알 탄약통 / 바주카포 / 10초 무적 비행기 변신 아이템)
 class WeaponItem {
   constructor(worldX, type, floatHeight = 38) {
     this.worldX = worldX;
-    this.type = type; // 'bullet' | 'bazooka'
+    this.type = type; // 'bullet' | 'bazooka' | 'airplane'
     this.floatHeight = Math.max(34, floatHeight);
     this.bobPhase = Math.random() * Math.PI * 2;
     this.collected = false;
-    this.boxSize = 28;
+    this.boxSize = type === 'airplane' ? 34 : 28;
   }
 
   update(dt) {
@@ -817,61 +1096,67 @@ class WeaponItem {
 
   render(ctx, cameraX, road, canvasHeight) {
     const { sx, sy, groundY } = this.getScreenPos(cameraX, road, canvasHeight);
-    if (sx < -60 || sx > ctx.canvas.width + 60) return;
+    if (sx < -70 || sx > ctx.canvas.width + 70) return;
 
+    const isAirplane = this.type === 'airplane';
     const isBazooka = this.type === 'bazooka';
-    // 장애물(적색)과 정반대인 밝은 에메랄드 그린(총알 보급) & 스카이 시안-골드(바주카 보급) 컬러 사용
-    const auraColor = isBazooka ? '#00f3ff' : '#00ff88';
-    const accentColor = isBazooka ? '#ffd700' : '#ffe600';
+    const auraColor = isAirplane ? '#ffd700' : isBazooka ? '#00f3ff' : '#00ff88';
 
     ctx.save();
 
-    // 1. 도로 바닥에서 보급 캡슐로 올라오는 부드러운 에메랄드/시안 홀로그램 빛기둥
+    // 1. 도로 바닥에서 보급 캡슐로 올라오는 홀로그램 빛기둥
     const beamGrad = ctx.createLinearGradient(sx, sy, sx, groundY);
-    beamGrad.addColorStop(0, auraColor + '55');
+    beamGrad.addColorStop(0, auraColor + '66');
     beamGrad.addColorStop(1, auraColor + '00');
     ctx.fillStyle = beamGrad;
-    ctx.fillRect(sx - 10, sy, 20, Math.max(0, groundY - sy));
+    ctx.fillRect(sx - 12, sy, 24, Math.max(0, groundY - sy));
 
     ctx.translate(sx, sy);
 
-    // 2. 외곽 후광 오라 원 & 날개형 낙하산 홀로그램 아치
     ctx.shadowColor = auraColor;
-    ctx.shadowBlur = 16;
+    ctx.shadowBlur = 18;
 
-    // 상단 미니 낙하산/윙 캐노피 (아이템임을 직관적으로 표현)
+    // 2. 상단 홀로그램 낙하산/날개 아치
     ctx.strokeStyle = auraColor;
     ctx.lineWidth = 1.8;
     ctx.beginPath();
-    ctx.arc(0, -18, 16, Math.PI * 1.15, Math.PI * 1.85);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-13, -22);
-    ctx.lineTo(-8, -14);
-    ctx.moveTo(13, -22);
-    ctx.lineTo(8, -14);
+    ctx.arc(0, -19, 17, Math.PI * 1.15, Math.PI * 1.85);
     ctx.stroke();
 
-    // 3. 둥근 사각형 보급 캡슐 본체 (밝은 테두리 + 진한 네이비 배경)
+    // 3. 보급 캡슐 본체
     const half = this.boxSize * 0.5;
-    ctx.fillStyle = 'rgba(4, 24, 36, 0.92)';
+    ctx.fillStyle = isAirplane ? 'rgba(40, 28, 4, 0.94)' : 'rgba(4, 24, 36, 0.92)';
     ctx.strokeStyle = auraColor;
-    ctx.lineWidth = 2.4;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.roundRect(-half, -half, this.boxSize, this.boxSize, 7);
+    ctx.roundRect(-half, -half, this.boxSize, this.boxSize, 8);
     ctx.fill();
     ctx.stroke();
 
-    // 4. 캡슐 내부에 실제 무기 모양 벡터 드로잉 (총알 3발 vs 바주카포 로켓)
+    // 4. 캡슐 내부 아이콘 드로잉
     ctx.shadowBlur = 0;
-    if (!isBazooka) {
-      // 황금색 총알 탄약 3발 나란히 묘사
+    if (isAirplane) {
+      // 황금/시안 제트 비행기 아이콘
+      ctx.fillStyle = '#ffd700';
+      ctx.beginPath();
+      ctx.moveTo(11, 0);
+      ctx.lineTo(2, -3);
+      ctx.lineTo(-4, -10);
+      ctx.lineTo(-8, -9);
+      ctx.lineTo(-4, -2);
+      ctx.lineTo(-10, -2);
+      ctx.lineTo(-10, 2);
+      ctx.lineTo(-4, 2);
+      ctx.lineTo(-8, 9);
+      ctx.lineTo(-4, 10);
+      ctx.lineTo(2, 3);
+      ctx.closePath();
+      ctx.fill();
+    } else if (!isBazooka) {
       for (let i = -1; i <= 1; i++) {
         const bx = i * 6.5;
-        // 탄피
         ctx.fillStyle = '#ffb700';
         ctx.fillRect(bx - 2, -2, 4, 9);
-        // 탄두
         ctx.fillStyle = '#fff3b0';
         ctx.beginPath();
         ctx.moveTo(bx - 2, -2);
@@ -881,13 +1166,10 @@ class WeaponItem {
         ctx.fill();
       }
     } else {
-      // 바주카포 로켓 탄두 & 발사관 묘사
       ctx.save();
       ctx.rotate(-Math.PI / 4);
-      // 로켓 몸통
       ctx.fillStyle = '#00f3ff';
       ctx.fillRect(-3, -5, 6, 11);
-      // 붉은/황금 탄두 노즈콘
       ctx.fillStyle = '#ffd700';
       ctx.beginPath();
       ctx.moveTo(-4, -5);
@@ -895,15 +1177,14 @@ class WeaponItem {
       ctx.lineTo(4, -5);
       ctx.closePath();
       ctx.fill();
-      // 날개 핀
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(-6, 3, 12, 3);
       ctx.restore();
     }
 
-    // 5. 상단 선명한 초록/하늘색 보급 캡슐 이름표 배지
-    const badgeW = 68;
-    const badgeH = 15;
+    // 5. 상단 이름표 배지
+    const badgeW = isAirplane ? 102 : 68;
+    const badgeH = 16;
     const badgeY = -half - 24;
     ctx.fillStyle = auraColor;
     ctx.beginPath();
@@ -914,13 +1195,13 @@ class WeaponItem {
     ctx.font = '900 9px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(isBazooka ? '🎁 바주카 +1' : '🎁 총알 +6', 0, badgeY + badgeH * 0.5 + 0.5);
+    const labelText = isAirplane ? '✈️ 비행기 변신 (10초 무적)' : isBazooka ? '🎁 바주카 +1' : '🎁 총알 +6';
+    ctx.fillText(labelText, 0, badgeY + badgeH * 0.5 + 0.5);
 
     ctx.restore();
   }
 }
 
-// 파티클 및 충격파 / 플로팅 텍스트 매니저
 class EffectsManager {
   constructor() {
     this.particles = [];

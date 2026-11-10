@@ -1,4 +1,4 @@
-// 메인 게임 루프, 50단계(30분 완주) 난이도 디렉터, 10종 장애물 매칭, 보급 빈도(30% 축소) 관리 모듈
+// 메인 게임 루프, 50단계(20분 완주) 디렉터, 비행기 5회 랜덤 출현(10초 무적), 2~3연속 결합 및 공중(점프금지) 장애물 관리 모듈
 
 class Run2YouGame {
   constructor() {
@@ -23,7 +23,7 @@ class Run2YouGame {
     this.destroyedCount = 0;
     this.runTimeSeconds = 0;
 
-    // 무기 탄약 (총알: 3발 명중 시 파괴 / 바주카: 1발 명중 시 즉시 파괴)
+    // 무기 탄약
     this.bulletAmmo = 6;
     this.bazookaAmmo = 1;
     this.bulletCooldown = 0;
@@ -35,9 +35,10 @@ class Run2YouGame {
     this.speedPx = 295;
     this.currentSectorId = 0;
 
-    // 스폰 관리용 월드 X 커서
+    // 스폰 관리용 월드 X 커서 및 20분 주행 중 5회 랜덤 등장하는 비행기 아이템 스케줄 큐
     this.nextObstacleWx = 680;
     this.nextItemWx = 1150;
+    this.airplaneSpawnWxQueue = [];
 
     this.shakeTime = 0;
     this.shakeIntensity = 0;
@@ -263,6 +264,26 @@ class Run2YouGame {
     this.height = h;
   }
 
+  // 20분(50레벨) 전체 구간 동안 비행기 아이템이 랜덤하게 총 5번 등장하도록 스폰 위치 생성
+  buildAirplaneSchedule() {
+    this.airplaneSpawnWxQueue = [];
+    const totalPx = this.road.totalClearPx;
+    // 5개 구간으로 나누어 각 구간 내 랜덤 지점에 1개씩(총 5회) 배치
+    // 첫 번째 비행기는 초반(레벨 2~7 사이)에서도 경험할 수 있게 배치
+    const zones = [
+      [0.02, 0.12],
+      [0.18, 0.34],
+      [0.38, 0.56],
+      [0.60, 0.78],
+      [0.82, 0.96]
+    ];
+    for (const [startRatio, endRatio] of zones) {
+      const ratio = startRatio + Math.random() * (endRatio - startRatio);
+      const wx = Math.round(320 + totalPx * ratio);
+      this.airplaneSpawnWxQueue.push(wx);
+    }
+  }
+
   resetRunState() {
     this.obstacles = [];
     this.projectiles = [];
@@ -287,6 +308,7 @@ class Run2YouGame {
 
     this.nextObstacleWx = 720;
     this.nextItemWx = 1150;
+    this.buildAirplaneSchedule();
 
     this.shakeTime = 0;
     this.updateHUD();
@@ -299,10 +321,10 @@ class Run2YouGame {
     this.modalGameOver.classList.add('hidden');
     this.state = 'playing';
     this.showBanner(
-      'STAGE 1 / 50 START!',
-      '붉은 위험물(⚠)은 점프·사격! 초록/하늘 보급상자(🎁)는 획득하세요!',
+      'STAGE 1 / 50 (20분 완주 챌린지)',
+      '지상 장애물(⚠)은 점프! 공중 장애물(⬇)은 점프 금지·그냥 통과!',
       '#00f3ff',
-      2400
+      2500
     );
   }
 
@@ -367,7 +389,11 @@ class Run2YouGame {
       headingEl.textContent = 'CRASHED!';
       headingEl.style.color = '';
       if (obstacle) {
-        reasonEl.textContent = `[${obstacle.label}] 위험 장애물과 충돌! (${obstacle.jumpHint} 또는 무기 활용 · 주행 시간: ${this.formatTime(this.runTimeSeconds)})`;
+        if (obstacle.isOverhead) {
+          reasonEl.textContent = `[${obstacle.label}]에 부딪혔습니다! 땅 위(공중) 장애물은 점프하지 말고 그냥 달려야 통과됩니다!`;
+        } else {
+          reasonEl.textContent = `[${obstacle.label}] 충돌! (${obstacle.jumpHint} 또는 무기 활용 · 주행 시간: ${this.formatTime(this.runTimeSeconds)})`;
+        }
       } else {
         reasonEl.textContent = '장애물과 충돌했습니다.';
       }
@@ -388,10 +414,19 @@ class Run2YouGame {
     }, 520);
   }
 
+  getTargetFireHeight() {
+    // 전방 가장 가까운 장애물이 공중 장애물이면 발사 각도를 공중 장애물 높이로 자동 조준
+    const aheadObs = this.obstacles.find((o) => o.worldX + o.width > this.bike.worldX);
+    if (aheadObs && aheadObs.isOverhead) {
+      return aheadObs.bottomClearance + aheadObs.height * 0.5;
+    }
+    return Math.max(14, Math.min(38, this.bike.airHeight + 14));
+  }
+
   fireBullet() {
     if (this.bulletCooldown > 0) return;
     if (this.bulletAmmo <= 0) {
-      this.effects.spawnFloatingText(this.bike.worldX, this.bike.y - 36, '총알 없음! 점프하세요!', '#ffe600');
+      this.effects.spawnFloatingText(this.bike.worldX, this.bike.y - 36, '총알 없음! 점프/통과하세요!', '#ffe600');
       return;
     }
 
@@ -399,7 +434,7 @@ class Run2YouGame {
     this.bulletCooldown = 0.14;
     this.bike.muzzleFlashTimer = 0.08;
 
-    const fireHeight = Math.max(13, Math.min(36, this.bike.airHeight + 13));
+    const fireHeight = this.getTargetFireHeight();
     this.projectiles.push(new window.Projectile(this.bike.worldX + 18, fireHeight, 'bullet'));
     window.soundManager.playBulletFire();
     this.updateHUD();
@@ -416,7 +451,7 @@ class Run2YouGame {
     this.bazookaCooldown = 0.35;
     this.bike.muzzleFlashTimer = 0.16;
 
-    const fireHeight = Math.max(15, Math.min(38, this.bike.airHeight + 15));
+    const fireHeight = this.getTargetFireHeight();
     this.projectiles.push(new window.Projectile(this.bike.worldX + 20, fireHeight, 'bazooka'));
     window.soundManager.playBazookaFire();
     this.triggerShake(0.15, 5);
@@ -440,14 +475,12 @@ class Run2YouGame {
     }, durationMs);
   }
 
-  // 1단계 ~ 50단계(총 30분 완주) 진행 및 속도 업데이트
   updateDifficultyAndSpeed(dt) {
     this.runTimeSeconds += dt;
     this.currentMeters = Math.floor(this.road.worldXToMeters(this.bike.worldX - 120));
 
     const lvData = this.road.getLevelDataByMeters(this.currentMeters);
 
-    // 50단계 최종 완주 성공 체크!
     if (lvData.isClearedAll) {
       this.level = 50;
       this.triggerGameOver(null, true);
@@ -460,17 +493,15 @@ class Run2YouGame {
       this.currentSectorId = theme.id;
       this.showBanner(
         `LEVEL ${this.level} / 50 진입!`,
-        `도로 테마: ${theme.styleName} · 목표 완주까지 ${51 - this.level}단계`,
+        `굴곡 테마: ${theme.styleName} · 완주까지 ${51 - this.level}단계`,
         theme.mainColor,
         2100
       );
     }
 
-    // 해당 레벨 목표 속도로 부드럽게 가속
     const targetSpeed = lvData.speedPx;
     this.speedPx += (targetSpeed - this.speedPx) * Math.min(1, dt * 2.5);
 
-    // 최고 기록 실시간 갱신 체크
     if (this.currentMeters > this.bestMeters) {
       this.bestMeters = this.currentMeters;
       this.saveBestRecord(this.bestMeters);
@@ -486,49 +517,88 @@ class Run2YouGame {
   spawnWorldEntities(cameraX) {
     const spawnHorizon = cameraX + this.width + 260;
 
-    // 1. 10종 장애물 스폰 (무기 없이 점프만으로도 100% 넘을 수 있는 안전 간격 보장)
+    // 1. 단독(1개), 2연속 결합, 3연속 결합 및 공중(점프금지) 장애물 스폰
     while (this.nextObstacleWx < spawnHorizon) {
-      const typeKey = this.pickObstacleTypeForLevel(this.level);
-      const obs = new window.Obstacle(this.nextObstacleWx, typeKey);
+      const specOrArray = this.pickObstacleSpecForLevel(this.level);
+      const obs = new window.Obstacle(this.nextObstacleWx, specOrArray);
       this.obstacles.push(obs);
 
-      const minSafeLandingGap = this.speedPx * 0.72 + obs.width;
-      const levelTightness = Math.max(85, 250 - this.level * 3.2);
-      const randomExtraGap = 140 + Math.random() * levelTightness;
+      const minSafeLandingGap = this.speedPx * 0.74 + obs.width;
+      const levelTightness = Math.max(90, 250 - this.level * 3.1);
+      const randomExtraGap = 145 + Math.random() * levelTightness;
       this.nextObstacleWx += minSafeLandingGap + randomExtraGap;
     }
 
-    // 2. 무기 아이템(총알 & 바주카포) 스폰 - 기존 대비 발생 빈도를 정확히 30% 수준(간격 약 3.33배)으로 축소
+    // 2. 20분 주행 중 랜덤하게 총 5번 등장하는 '비행기 변신 아이템' 체크 및 스폰
+    while (this.airplaneSpawnWxQueue.length > 0 && this.airplaneSpawnWxQueue[0] < spawnHorizon) {
+      const airplaneWx = this.airplaneSpawnWxQueue.shift();
+      this.items.push(new window.WeaponItem(airplaneWx, 'airplane', 48));
+    }
+
+    // 3. 총알 & 바주카포 보급 아이템 스폰 (30% 빈도 유지)
     while (this.nextItemWx < spawnHorizon) {
       const itemType = Math.random() < 0.27 ? 'bazooka' : 'bullet';
 
       const overlappingObs = this.obstacles.find(
-        (o) => this.nextItemWx >= o.worldX - 55 && this.nextItemWx <= o.worldX + o.width + 55
+        (o) => this.nextItemWx >= o.worldX - 65 && this.nextItemWx <= o.worldX + o.width + 65
       );
 
       let spawnWx = this.nextItemWx;
-      let floatH = 40;
+      let floatH = 38;
 
       if (overlappingObs) {
-        if (Math.random() < 0.55) {
+        if (overlappingObs.isOverhead) {
+          // 공중 장애물 구간에서는 점프하지 않고도 먹을 수 있도록 도로 바로 위에 낮게 배치
+          spawnWx = overlappingObs.worldX - 90;
+          floatH = 22;
+        } else if (Math.random() < 0.55) {
           spawnWx = overlappingObs.worldX - 105;
-          floatH = 38;
+          floatH = 36;
         } else {
           spawnWx = overlappingObs.worldX + overlappingObs.width * 0.5;
           floatH = overlappingObs.height + 48;
         }
       } else {
-        floatH = Math.random() < 0.35 ? 74 : 38;
+        floatH = Math.random() < 0.35 ? 72 : 36;
       }
 
       this.items.push(new window.WeaponItem(spawnWx, itemType, floatH));
-      // 기존(360 + rand*250 = 평균 485px) 대비 약 3.35배 간격(1240 + rand*780 = 평균 1630px) -> 빈도 30%
       this.nextItemWx += 1240 + Math.random() * 780;
     }
   }
 
-  // 1~50단계에 걸쳐 10종의 다양한 장애물이 단계별로 해금 및 조합되도록 설정
-  pickObstacleTypeForLevel(level) {
+  // 레벨에 따라 단독 장애물, 2개 연속 결합, 3개 연속 결합, 또는 공중(점프금지) 장애물 선택
+  pickObstacleSpecForLevel(level) {
+    // 1) 레벨 2 이상부터 약 22% 확률로 '점프하면 죽고 그냥 달려야 통과되는' 땅 위(공중) 장애물 등장
+    if (level >= 2 && Math.random() < 0.22) {
+      const overheadPool = ['overhead_drone'];
+      if (level >= 4) overheadPool.push('overhead_saw');
+      if (level >= 8) overheadPool.push('overhead_barrier');
+      return overheadPool[Math.floor(Math.random() * overheadPool.length)];
+    }
+
+    // 2) 2개나 3개가 동시에 붙어서 나오는 결합 장애물 확률 (레벨이 높을수록 2~3연속 빈도 증가)
+    const clusterRoll = Math.random();
+    const compactPool = ['short_spike', 'saw_blade'];
+    if (level >= 2) compactPool.push('laser_hurdle');
+    if (level >= 4) compactPool.push('medium_crate');
+
+    // 3개 연속 붙어 있는 장애물 (레벨 4 이상에서 등장, 최대 롱점프 또는 무기로 돌파 가능하도록 단거리형 3종 결합)
+    if (level >= 4 && clusterRoll < Math.min(0.22, 0.08 + level * 0.003)) {
+      const s1 = compactPool[Math.floor(Math.random() * Math.min(2, compactPool.length))];
+      const s2 = compactPool[Math.floor(Math.random() * Math.min(2, compactPool.length))];
+      const s3 = compactPool[Math.floor(Math.random() * Math.min(2, compactPool.length))];
+      return [s1, s2, s3];
+    }
+
+    // 2개 연속 붙어 있는 장애물 (레벨 2 이상에서 등장)
+    if (level >= 2 && clusterRoll < Math.min(0.46, 0.22 + level * 0.005)) {
+      const s1 = compactPool[Math.floor(Math.random() * compactPool.length)];
+      const s2 = compactPool[Math.floor(Math.random() * compactPool.length)];
+      return [s1, s2];
+    }
+
+    // 3) 단독 장애물 (10종 풀)
     const pool = ['short_spike', 'saw_blade'];
     if (level >= 2) pool.push('laser_hurdle');
     if (level >= 3) pool.push('medium_crate');
@@ -539,7 +609,6 @@ class Run2YouGame {
     if (level >= 18) pool.push('spider_mech');
     if (level >= 24) pool.push('mega_fortress');
 
-    // 현재 레벨에서 최근 해금된 장애물에 약간의 가중치를 주면서 전체 풀에서 골고루 등장
     if (Math.random() < 0.35 && pool.length >= 3) {
       const recentSlice = pool.slice(-3);
       return recentSlice[Math.floor(Math.random() * recentSlice.length)];
@@ -555,12 +624,19 @@ class Run2YouGame {
     const theme = lvData.theme;
     const lvPct = Math.round(lvData.levelProgress * 100);
 
-    this.elSectorBadge.textContent = `STAGE ${String(this.level).padStart(2, '0')}/50 (${lvPct}%) · ${theme.sectorName}`;
-    this.elSectorBadge.style.color = theme.mainColor;
-    this.elSectorBadge.style.borderColor = theme.mainColor + '66';
+    if (this.bike.isAirplaneMode()) {
+      this.elSectorBadge.textContent = `✈️ 무적 비행기 모드 작동 중! (${this.bike.airplaneTimer.toFixed(1)}초 남음)`;
+      this.elSectorBadge.style.color = '#ffd700';
+      this.elSectorBadge.style.borderColor = '#ffd700';
+    } else {
+      this.elSectorBadge.textContent = `STAGE ${String(this.level).padStart(2, '0')}/50 (${lvPct}%) · ${theme.sectorName}`;
+      this.elSectorBadge.style.color = theme.mainColor;
+      this.elSectorBadge.style.borderColor = theme.mainColor + '66';
+    }
 
     this.elLevel.textContent = `LV.${this.level} / 50`;
-    const kmh = Math.round(this.speedPx * 0.36);
+    const effectiveSpeed = this.bike.isAirplaneMode() ? this.speedPx * 1.32 : this.speedPx;
+    const kmh = Math.round(effectiveSpeed * 0.36);
     this.elSpeed.textContent = `${kmh} km/h`;
     this.elRoadStyle.textContent = theme.styleName;
 
@@ -574,7 +650,7 @@ class Run2YouGame {
     this.btnBullet.classList.toggle('disabled-pad', this.bulletAmmo <= 0);
     this.btnBazooka.classList.toggle('disabled-pad', this.bazookaAmmo <= 0);
 
-    if (!this.bike.isGrounded && this.state === 'playing') {
+    if (!this.bike.isGrounded && !this.bike.isAirplaneMode() && this.state === 'playing') {
       this.elJumpMeterWrap.classList.remove('hidden');
       const ratio = this.bike.getJumpHoldRatio();
       const pct = Math.max(18, Math.round(ratio * 100));
@@ -610,18 +686,15 @@ class Run2YouGame {
     if (this.bazookaCooldown > 0) this.bazookaCooldown -= dt;
     if (this.shakeTime > 0) this.shakeTime -= dt;
 
-    // 1. 50단계 난이도 및 속도 업데이트
     this.updateDifficultyAndSpeed(dt);
     if (this.state !== 'playing') return;
 
-    // 2. 오토바이 물리 업데이트
     this.bike.update(dt, this.speedPx, this.road, this.height);
     const cameraX = this.bike.worldX - this.width * this.bike.screenXRatio;
 
-    // 3. 전방 장애물 및 보급 아이템 스폰
     this.spawnWorldEntities(cameraX);
 
-    // 4. 발사체 이동 및 장애물 명중 판정
+    // 발사체 이동 및 장애물 명중 판정
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const proj = this.projectiles[i];
       proj.update(dt, this.speedPx);
@@ -640,6 +713,9 @@ class Run2YouGame {
           const isDestroyed = obs.takeDamage(proj.damage);
           const obsCenterWx = obs.worldX + obs.width * 0.5;
           const obsGroundY = this.road.getRoadY(obsCenterWx, this.height);
+          const effectY = obs.isOverhead
+            ? obsGroundY - obs.bottomClearance - obs.height * 0.5
+            : obsGroundY - obs.height * 0.5;
 
           if (isDestroyed) {
             this.destroyedCount++;
@@ -648,24 +724,24 @@ class Run2YouGame {
             this.triggerShake(isBazooka ? 0.28 : 0.14, isBazooka ? 10 : 5);
             this.effects.spawnExplosion(
               obsCenterWx,
-              obsGroundY - obs.height * 0.5,
+              effectY,
               isBazooka ? '#00f3ff' : obs.color,
               isBazooka ? 30 : 18,
               isBazooka
             );
             this.effects.spawnFloatingText(
               obsCenterWx,
-              obsGroundY - obs.height - 20,
+              effectY - 20,
               isBazooka ? '💥 BAZOOKA 1-SHOT!' : '⚡ DESTROYED!',
               isBazooka ? '#00f3ff' : '#ffe600'
             );
             this.obstacles.splice(j, 1);
           } else {
             window.soundManager.playBulletHit(obs.hp);
-            this.effects.spawnExplosion(proj.worldX, obsGroundY - obs.height * 0.5, '#ffe600', 7, false);
+            this.effects.spawnExplosion(proj.worldX, effectY, '#ffe600', 7, false);
             this.effects.spawnFloatingText(
               obsCenterWx,
-              obsGroundY - obs.height - 22,
+              effectY - 22,
               `HIT! (${3 - obs.hp}/3)`,
               '#ffe600'
             );
@@ -679,7 +755,7 @@ class Run2YouGame {
       }
     }
 
-    // 5. 무기 보급 아이템 획득 판정
+    // 아이템 획득 판정 (총알 / 바주카포 / 10초 무적 비행기)
     const bikeScreenPos = {
       sx: this.bike.worldX - cameraX,
       sy: this.bike.y - 10
@@ -694,13 +770,25 @@ class Run2YouGame {
       const dy = bikeScreenPos.sy - sy;
       const dist = Math.hypot(dx, dy);
 
-      if (dist < 34) {
-        window.soundManager.playPickup(item.type);
-        if (item.type === 'bazooka') {
+      if (dist < 38) {
+        if (item.type === 'airplane') {
+          window.soundManager.playNewRecord();
+          this.bike.activateAirplane(10.0);
+          this.effects.spawnFloatingText(item.worldX, sy - 20, '✈️ 비행기 변신! 10초 무적!', '#ffd700');
+          this.effects.spawnExplosion(item.worldX, sy, '#ffd700', 26, true);
+          this.showBanner(
+            '✈️ 비행기 변신! (10초 무적 자동 비행)',
+            '컨트롤 없이 10초간 초음속으로 모든 장애물을 격파하며 질주합니다!',
+            '#ffd700',
+            3000
+          );
+        } else if (item.type === 'bazooka') {
+          window.soundManager.playPickup('bazooka');
           this.bazookaAmmo += 1;
           this.effects.spawnFloatingText(item.worldX, sy - 16, '🎁 바주카 +1 보급!', '#00f3ff');
           this.effects.spawnExplosion(item.worldX, sy, '#00f3ff', 12, false);
         } else {
+          window.soundManager.playPickup('bullet');
           this.bulletAmmo += 6;
           this.effects.spawnFloatingText(item.worldX, sy - 16, '🎁 총알 +6 보급!', '#00ff88');
           this.effects.spawnExplosion(item.worldX, sy, '#00ff88', 12, false);
@@ -714,12 +802,24 @@ class Run2YouGame {
       }
     }
 
-    // 6. 장애물 업데이트 및 오토바이 충돌 판정
+    // 장애물 업데이트 및 오토바이(또는 무적 비행기) 충돌/격파 판정
     for (let i = this.obstacles.length - 1; i >= 0; i--) {
       const obs = this.obstacles[i];
       obs.update(dt);
 
-      if (obs.checkCollision(this.bike)) {
+      // 비행기 무적 모드(또는 착륙 직후 보호막)일 때는 지나가는 경로의 모든 장애물을 자동 폭파!
+      if (this.bike.isInvincible()) {
+        if (obs.worldX <= this.bike.worldX + 44 && obs.worldX + obs.width >= this.bike.worldX - 30) {
+          this.destroyedCount++;
+          window.soundManager.playExplosion(false);
+          const obsCenterWx = obs.worldX + obs.width * 0.5;
+          const obsGroundY = this.road.getRoadY(obsCenterWx, this.height);
+          this.effects.spawnExplosion(obsCenterWx, obsGroundY - 24, '#ffd700', 18, false);
+          this.effects.spawnFloatingText(obsCenterWx, obsGroundY - 52, '✈️ 무적 격파!', '#ffd700');
+          this.obstacles.splice(i, 1);
+          continue;
+        }
+      } else if (obs.checkCollision(this.bike)) {
         this.triggerGameOver(obs, false);
         return;
       }
