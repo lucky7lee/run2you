@@ -1,80 +1,188 @@
-// 다양한 형태와 테마로 진화하는 네온 선(Line) 도로 생성 및 렌더링 모듈
+// 50단계(약 30분 완주) 레벨 구조에 맞춘 네온 선(Line) 도로 생성 및 렌더링 모듈
 
 const ROAD_THEMES = [
   {
     id: 0,
-    sectorName: 'SECTOR 01 · NEON HIGHWAY',
-    styleName: '완만한 네온 웨이브',
+    sectorName: 'NEON HIGHWAY',
+    styleName: '완만한 네온 하이웨이',
     mainColor: '#00f3ff',
     subColor: '#0066ff',
-    underStyle: 'pillars', // 수직 네온 기둥
-    amp1: 18,
-    freq1: 0.0022,
-    amp2: 8,
-    freq2: 0.0055,
+    underStyle: 'pillars',
+    amp1: 16,
+    freq1: 0.0020,
+    amp2: 6,
+    freq2: 0.0050,
     stepMode: false
   },
   {
     id: 1,
-    sectorName: 'SECTOR 02 · CYBER HILLS',
+    sectorName: 'CYBER HILLS',
     styleName: '트러스 구릉지 도로',
-    mainColor: '#ff2a85',
-    subColor: '#9d00ff',
-    underStyle: 'truss', // 삼각 트러스 구조선
-    amp1: 42,
-    freq1: 0.0028,
-    amp2: 16,
-    freq2: 0.0068,
+    mainColor: '#a855f7',
+    subColor: '#6366f1',
+    underStyle: 'truss',
+    amp1: 30,
+    freq1: 0.0024,
+    amp2: 12,
+    freq2: 0.0058,
     stepMode: false
   },
   {
     id: 2,
-    sectorName: 'SECTOR 03 · SKY TERRACE',
+    sectorName: 'SKY TERRACE',
     styleName: '단차 고원 & 슬로프',
-    mainColor: '#39ff14',
-    subColor: '#00b894',
-    underStyle: 'circuit', // 디지털 서킷 라인
-    amp1: 36,
-    freq1: 0.0025,
-    amp2: 22,
-    freq2: 0.005,
-    stepMode: true // 계단식 완만한 고원 단차 느낌 가미
+    mainColor: '#38bdf8',
+    subColor: '#0284c7',
+    underStyle: 'circuit',
+    amp1: 28,
+    freq1: 0.0022,
+    amp2: 16,
+    freq2: 0.0048,
+    stepMode: true
   },
   {
     id: 3,
-    sectorName: 'SECTOR 04 · COASTER RIDGE',
-    styleName: '롤러코스터 급경사선',
-    mainColor: '#ff8c00',
-    subColor: '#ff0055',
-    underStyle: 'equalizer', // 네온 이퀄라이저 바
-    amp1: 54,
-    freq1: 0.0033,
-    amp2: 24,
-    freq2: 0.0078,
+    sectorName: 'PULSE VALLEY',
+    styleName: '이퀄라이저 계곡선',
+    mainColor: '#818cf8',
+    subColor: '#4f46e5',
+    underStyle: 'equalizer',
+    amp1: 38,
+    freq1: 0.0027,
+    amp2: 18,
+    freq2: 0.0064,
     stepMode: false
   },
   {
     id: 4,
-    sectorName: 'SECTOR 05 · OVERDRIVE ABYSS',
-    styleName: '초고속 복합 파동선',
-    mainColor: '#00ffcc',
-    subColor: '#ff00e1',
-    underStyle: 'laserGrid', // 복합 레이저 그리드
-    amp1: 58,
-    freq1: 0.0036,
-    amp2: 28,
-    freq2: 0.0085,
+    sectorName: 'HORIZON GRID',
+    styleName: '레이저 그리드 평원',
+    mainColor: '#2dd4bf',
+    subColor: '#0d9488',
+    underStyle: 'laserGrid',
+    amp1: 24,
+    freq1: 0.0021,
+    amp2: 14,
+    freq2: 0.0060,
+    stepMode: false
+  },
+  {
+    id: 5,
+    sectorName: 'COASTER RIDGE',
+    styleName: '롤러코스터 능선',
+    mainColor: '#c084fc',
+    subColor: '#7e22ce',
+    underStyle: 'truss',
+    amp1: 44,
+    freq1: 0.0030,
+    amp2: 20,
+    freq2: 0.0070,
+    stepMode: false
+  },
+  {
+    id: 6,
+    sectorName: 'QUANTUM STEP',
+    styleName: '퀀텀 계단식 궤도',
+    mainColor: '#60a5fa',
+    subColor: '#2563eb',
+    underStyle: 'pillars',
+    amp1: 36,
+    freq1: 0.0025,
+    amp2: 20,
+    freq2: 0.0054,
+    stepMode: true
+  },
+  {
+    id: 7,
+    sectorName: 'SYNTH CANYON',
+    styleName: '신스웨이브 협곡',
+    mainColor: '#e879f9',
+    subColor: '#a21caf',
+    underStyle: 'equalizer',
+    amp1: 46,
+    freq1: 0.0031,
+    amp2: 22,
+    freq2: 0.0074,
+    stepMode: false
+  },
+  {
+    id: 8,
+    sectorName: 'AERO BRIDGE',
+    styleName: '초고속 스카이 브릿지',
+    mainColor: '#22d3ee',
+    subColor: '#0891b2',
+    underStyle: 'circuit',
+    amp1: 40,
+    freq1: 0.0028,
+    amp2: 22,
+    freq2: 0.0068,
+    stepMode: true
+  },
+  {
+    id: 9,
+    sectorName: 'OVERDRIVE CORE',
+    styleName: '파이널 오버드라이브 선',
+    mainColor: '#38ef7d',
+    subColor: '#11998e',
+    underStyle: 'laserGrid',
+    amp1: 48,
+    freq1: 0.0033,
+    amp2: 24,
+    freq2: 0.0078,
     stepMode: true
   }
 ];
 
 class NeonRoad {
   constructor() {
-    this.baseGroundRatio = 0.67; // 화면 높이 대비 기본 도로 중심 높이 비율
+    this.baseGroundRatio = 0.68; // 화면 높이 대비 기본 도로 중심 높이 비율
     this.segmentStep = 14; // 도로 선 샘플링 간격 (px)
     this.bgStars = [];
-    this.bgMountains = [];
     this.initBackground();
+    this.buildLevelTable();
+  }
+
+  // 1단계부터 50단계까지 죽지 않고 달릴 때 총 30분(1,800초 = 단계당 평균 36초)이 소요되도록 레벨별 거리·속도 테이블 생성
+  buildLevelTable() {
+    this.maxLevel = 50;
+    this.secondsPerLevel = 36; // 50단계 * 36초 = 1,800초 (정확히 30분)
+    this.levels = [];
+
+    let cumulativePx = 0;
+    let cumulativeMeters = 0;
+
+    for (let lv = 1; lv <= this.maxLevel; lv++) {
+      const progress = (lv - 1) / (this.maxLevel - 1); // 0.0 ~ 1.0
+      // 초반 LV.1 속도 295 px/s (106 km/h) -> LV.50 속도 555 px/s (200 km/h)
+      const speedPx = Math.round(295 + progress * 260);
+      // 해당 레벨을 통과하는 데 정확히 36초가 걸리도록 레벨 도로 길이(px, m) 산정
+      const spanPx = speedPx * this.secondsPerLevel;
+      const spanMeters = Math.round(spanPx / 28);
+
+      const startPx = cumulativePx;
+      const endPx = cumulativePx + spanPx;
+      const startMeters = cumulativeMeters;
+      const endMeters = cumulativeMeters + spanMeters;
+
+      const theme = ROAD_THEMES[(lv - 1) % ROAD_THEMES.length];
+
+      this.levels.push({
+        level: lv,
+        speedPx,
+        spanPx,
+        spanMeters,
+        startPx,
+        endPx,
+        startMeters,
+        endMeters,
+        theme
+      });
+
+      cumulativePx = endPx;
+      cumulativeMeters = endMeters;
+    }
+
+    this.totalClearMeters = cumulativeMeters; // 50단계 완주 총 거리 (약 27,300m, 30분 소요)
   }
 
   initBackground() {
@@ -88,20 +196,31 @@ class NeonRoad {
         speedFactor: Math.random() * 0.08 + 0.02
       });
     }
-
-    this.bgMountains = [];
-    for (let i = 0; i < 16; i++) {
-      this.bgMountains.push({
-        index: i,
-        heightFactor: 0.12 + Math.sin(i * 1.7) * 0.06 + (i % 3) * 0.03
-      });
-    }
   }
 
-  // 주행 거리(m)에 따른 현재 도로 섹터 테마 반환 (250m마다 새로운 도로 모습으로 전환)
+  // 현재 주행 거리(m)에 해당하는 레벨 데이터(1~50단계) 반환
+  getLevelDataByMeters(meters) {
+    for (let i = 0; i < this.levels.length; i++) {
+      const lvData = this.levels[i];
+      if (meters < lvData.endMeters) {
+        const levelProgress = Math.max(0, Math.min(1, (meters - lvData.startMeters) / lvData.spanMeters));
+        return {
+          ...lvData,
+          levelProgress,
+          isClearedAll: false
+        };
+      }
+    }
+    const last = this.levels[this.levels.length - 1];
+    return {
+      ...last,
+      levelProgress: 1,
+      isClearedAll: true
+    };
+  }
+
   getThemeByMeters(meters) {
-    const idx = Math.floor(meters / 250) % ROAD_THEMES.length;
-    return ROAD_THEMES[idx];
+    return this.getLevelDataByMeters(meters).theme;
   }
 
   // 월드 X 좌표를 미터(m)로 변환 (1m = 28px)
@@ -113,11 +232,11 @@ class NeonRoad {
     return meters * 28;
   }
 
-  // 특정 월드 X 좌표에서의 도로 높이(Y) 계산 (연속적이고 매끄러운 선 도로 보장)
+  // 특정 월드 X 좌표에서의 도로 높이(Y) 계산
   getRoadY(worldX, canvasHeight) {
     const baseLine = canvasHeight * this.baseGroundRatio;
 
-    // 초반 320px 구간은 출발 적응을 위해 평탄한 도로 유지
+    // 초반 출발 구간은 적응을 위해 평탄한 도로 유지
     if (worldX < 320) {
       return baseLine;
     }
@@ -125,38 +244,35 @@ class NeonRoad {
     const activeX = worldX - 320;
     const rampIn = Math.min(1, activeX / 450);
 
-    // 섹터 간 부드러운 보간 (250m = 7000px 주기)
-    const sectorSpanPx = 250 * 28;
-    const rawSector = Math.max(0, worldX) / sectorSpanPx;
-    const idxA = Math.floor(rawSector) % ROAD_THEMES.length;
-    const idxB = (idxA + 1) % ROAD_THEMES.length;
-    const frac = rawSector - Math.floor(rawSector);
-    // 섹터 끝 15% 구간에서 다음 도로 형태로 매끄럽게 블렌딩
-    const blend = frac > 0.85 ? (frac - 0.85) / 0.15 : 0;
+    const meters = this.worldXToMeters(activeX);
+    const lvData = this.getLevelDataByMeters(meters);
+    const themeA = lvData.theme;
+    const nextThemeIdx = lvData.level % ROAD_THEMES.length;
+    const themeB = ROAD_THEMES[nextThemeIdx];
 
-    const yA = this.evalWavePattern(activeX, ROAD_THEMES[idxA], canvasHeight);
-    const yB = this.evalWavePattern(activeX, ROAD_THEMES[idxB], canvasHeight);
+    // 각 레벨 마지막 12% 구간에서 다음 레벨 도로 형태로 부드럽게 블렌딩
+    const blend = lvData.levelProgress > 0.88 ? (lvData.levelProgress - 0.88) / 0.12 : 0;
+
+    const yA = this.evalWavePattern(activeX, themeA, canvasHeight);
+    const yB = this.evalWavePattern(activeX, themeB, canvasHeight);
     const waveOffset = yA * (1 - blend) + yB * blend;
 
     return baseLine + waveOffset * rampIn;
   }
 
   evalWavePattern(x, theme, canvasHeight) {
-    // 작은 스마트폰 화면에서도 도로가 화면 밖이나 UI와 겹치지 않도록 진폭 스케일 조정
-    const heightScale = Math.min(1.05, Math.max(0.58, canvasHeight / 420));
+    const heightScale = Math.min(1.0, Math.max(0.55, canvasHeight / 420));
     let w1 = Math.sin(x * theme.freq1) * theme.amp1;
     let w2 = Math.cos(x * theme.freq2 + 1.3) * theme.amp2;
 
     if (theme.stepMode) {
-      // 단차 고원(테라스) 느낌의 완만한 계단형 웨이브 합성
-      const plateau = Math.tanh(Math.sin(x * 0.0019) * 2.6) * (theme.amp1 * 0.85);
+      const plateau = Math.tanh(Math.sin(x * 0.0018) * 2.5) * (theme.amp1 * 0.85);
       w1 = w1 * 0.4 + plateau * 0.6;
     }
 
     return (w1 + w2) * heightScale;
   }
 
-  // 특정 월드 X 좌표에서의 도로 기울기(라디안 각도) 계산
   getRoadAngle(worldX, canvasHeight) {
     const delta = 8;
     const y1 = this.getRoadY(worldX - delta, canvasHeight);
@@ -167,7 +283,7 @@ class NeonRoad {
   render(ctx, cameraX, canvasWidth, canvasHeight, bestRecordMeters, currentMeters) {
     const theme = this.getThemeByMeters(currentMeters);
 
-    // 1. 배경 네온 별 & 원경 마운틴 와이어프레임
+    // 1. 배경 네온 별 & 원경 산맥
     this.renderBackground(ctx, cameraX, canvasWidth, canvasHeight, theme);
 
     // 2. 도로 선 샘플링
@@ -183,14 +299,14 @@ class NeonRoad {
 
     if (points.length < 2) return;
 
-    // 3. 도로 아래 네온 그리드/구조물 장식 (섹터마다 다른 도로 외형 연출)
+    // 3. 도로 아래 구조물 장식
     this.renderUnderStructure(ctx, points, canvasHeight, theme);
 
-    // 4. 도로 아래 은은한 그라데이션 필
+    // 4. 도로 아래 은은한 그라데이션
     ctx.save();
     const grad = ctx.createLinearGradient(0, canvasHeight * 0.45, 0, canvasHeight);
-    grad.addColorStop(0, theme.mainColor + '28');
-    grad.addColorStop(0.5, theme.subColor + '12');
+    grad.addColorStop(0, theme.mainColor + '24');
+    grad.addColorStop(0.5, theme.subColor + '10');
     grad.addColorStop(1, 'rgba(4, 4, 12, 0.0)');
 
     ctx.beginPath();
@@ -204,21 +320,21 @@ class NeonRoad {
     ctx.fill();
     ctx.restore();
 
-    // 5. 보조 하단 네온 라인 (이중 네온 선 효과)
+    // 5. 보조 하단 네온 라인
     ctx.save();
     ctx.beginPath();
     for (let i = 0; i < points.length; i++) {
       const p = points[i];
-      if (i === 0) ctx.moveTo(p.sx, p.sy + 9);
-      else ctx.lineTo(p.sx, p.sy + 9);
+      if (i === 0) ctx.moveTo(p.sx, p.sy + 7);
+      else ctx.lineTo(p.sx, p.sy + 7);
     }
     ctx.strokeStyle = theme.subColor;
-    ctx.lineWidth = 2;
-    ctx.setLineDash(theme.stepMode ? [14, 8] : []);
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash(theme.stepMode ? [12, 7] : []);
     ctx.stroke();
     ctx.restore();
 
-    // 6. 메인 네온 도로 선 (글로우 + 코어 화이트 라인)
+    // 6. 메인 네온 도로 선
     ctx.save();
     ctx.beginPath();
     for (let i = 0; i < points.length; i++) {
@@ -227,27 +343,25 @@ class NeonRoad {
       else ctx.lineTo(p.sx, p.sy);
     }
     ctx.strokeStyle = theme.mainColor;
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 4;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.shadowColor = theme.mainColor;
-    ctx.shadowBlur = 16;
+    ctx.shadowBlur = 14;
     ctx.stroke();
 
-    // 중심 하이라이트 밝은 선
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.8;
+    ctx.lineWidth = 1.5;
     ctx.shadowBlur = 0;
     ctx.stroke();
     ctx.restore();
 
-    // 7. 거리 표지판 (100m 단위) 및 내 최고 기록(BEST RECORD) 네온 비콘 표시
+    // 7. 거리 표지판 및 최고 기록 비콘 표시
     this.renderMilestones(ctx, cameraX, canvasWidth, canvasHeight, bestRecordMeters, theme);
   }
 
   renderBackground(ctx, cameraX, canvasWidth, canvasHeight, theme) {
     ctx.save();
-    // 별 입자
     for (const s of this.bgStars) {
       const px = ((s.xRatio * canvasWidth - cameraX * s.speedFactor) % canvasWidth + canvasWidth) % canvasWidth;
       const py = s.yRatio * canvasHeight;
@@ -255,7 +369,6 @@ class NeonRoad {
       ctx.fillRect(px, py, s.size, s.size);
     }
 
-    // 원경 네온 산맥 (패럴랙스 선)
     const mountSpan = 160;
     const parallaxX = cameraX * 0.15;
     const firstIdx = Math.floor(parallaxX / mountSpan) - 1;
@@ -271,70 +384,65 @@ class NeonRoad {
       if (i === 0) ctx.moveTo(mx, my);
       else ctx.lineTo(mx, my);
     }
-    ctx.strokeStyle = theme.subColor + '44';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = theme.subColor + '40';
+    ctx.lineWidth = 1.4;
     ctx.stroke();
     ctx.restore();
   }
 
   renderUnderStructure(ctx, points, canvasHeight, theme) {
     ctx.save();
-    ctx.strokeStyle = theme.mainColor + '40';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = theme.mainColor + '38';
+    ctx.lineWidth = 1.1;
 
     if (theme.underStyle === 'pillars') {
-      // 일정 간격 수직 네온 기둥
       for (let i = 0; i < points.length; i += 4) {
         const p = points[i];
         if (Math.floor(p.wx / this.segmentStep) % 4 === 0) {
           ctx.beginPath();
-          ctx.moveTo(p.sx, p.sy + 9);
+          ctx.moveTo(p.sx, p.sy + 7);
           ctx.lineTo(p.sx, canvasHeight);
           ctx.stroke();
         }
       }
     } else if (theme.underStyle === 'truss') {
-      // 지그재그 다리 트러스 선
       ctx.beginPath();
       for (let i = 0; i < points.length - 2; i += 2) {
         const p1 = points[i];
         const p2 = points[i + 2];
-        ctx.moveTo(p1.sx, p1.sy + 9);
-        ctx.lineTo((p1.sx + p2.sx) * 0.5, p1.sy + 38);
-        ctx.lineTo(p2.sx, p2.sy + 9);
+        ctx.moveTo(p1.sx, p1.sy + 7);
+        ctx.lineTo((p1.sx + p2.sx) * 0.5, p1.sy + 34);
+        ctx.lineTo(p2.sx, p2.sy + 7);
       }
       ctx.stroke();
     } else if (theme.underStyle === 'circuit') {
-      // 디지털 서킷 노드 라인
       for (let i = 0; i < points.length; i += 3) {
         const p = points[i];
         if (Math.floor(p.wx / this.segmentStep) % 3 === 0) {
           ctx.beginPath();
-          ctx.moveTo(p.sx, p.sy + 9);
-          ctx.lineTo(p.sx, p.sy + 26);
-          ctx.lineTo(p.sx - 12, p.sy + 38);
+          ctx.moveTo(p.sx, p.sy + 7);
+          ctx.lineTo(p.sx, p.sy + 24);
+          ctx.lineTo(p.sx - 10, p.sy + 34);
           ctx.stroke();
           ctx.fillStyle = theme.mainColor + '88';
-          ctx.fillRect(p.sx - 14, p.sy + 36, 4, 4);
+          ctx.fillRect(p.sx - 12, p.sy + 32, 3.5, 3.5);
         }
       }
     } else if (theme.underStyle === 'equalizer') {
-      // 이퀄라이저 네온 바
       for (let i = 0; i < points.length; i += 2) {
         const p = points[i];
-        const barLen = 14 + Math.abs(Math.sin(p.wx * 0.03)) * 36;
+        const barLen = 12 + Math.abs(Math.sin(p.wx * 0.03)) * 32;
         ctx.beginPath();
-        ctx.moveTo(p.sx, p.sy + 12);
-        ctx.lineTo(p.sx, p.sy + 12 + barLen);
+        ctx.moveTo(p.sx, p.sy + 10);
+        ctx.lineTo(p.sx, p.sy + 10 + barLen);
         ctx.stroke();
       }
     } else {
-      // 복합 사선 레이저 그리드
       ctx.beginPath();
       for (let i = 0; i < points.length; i += 3) {
         const p = points[i];
-        ctx.moveTo(p.sx, p.sy + 9);
-        ctx.lineTo(p.sx - 28, canvasHeight);
+        ctx.moveTo(p.sx, p.sy + 7);
+        ctx.lineTo(p.sx - 24, canvasHeight);
       }
       ctx.stroke();
     }
@@ -357,14 +465,14 @@ class NeonRoad {
       const sy = this.getRoadY(wx, canvasHeight);
 
       ctx.strokeStyle = theme.mainColor + '88';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
       ctx.moveTo(sx, sy);
-      ctx.lineTo(sx, sy + 22);
+      ctx.lineTo(sx, sy + 20);
       ctx.stroke();
 
-      ctx.fillStyle = 'rgba(240, 246, 255, 0.7)';
-      ctx.fillText(`${m}m`, sx, sy + 34);
+      ctx.fillStyle = 'rgba(240, 246, 255, 0.68)';
+      ctx.fillText(`${m}m`, sx, sy + 32);
     }
 
     // 이전 최고 기록(BEST RECORD) 위치에 빛나는 황금 네온 폴대 표시
@@ -379,16 +487,15 @@ class NeonRoad {
         ctx.shadowBlur = 12;
         ctx.beginPath();
         ctx.moveTo(bestSx, bestSy);
-        ctx.lineTo(bestSx, bestSy - 95);
+        ctx.lineTo(bestSx, bestSy - 90);
         ctx.stroke();
 
-        // 깃발 배너
         ctx.fillStyle = '#ffe600';
-        ctx.fillRect(bestSx - 38, bestSy - 114, 76, 18);
+        ctx.fillRect(bestSx - 38, bestSy - 108, 76, 18);
         ctx.shadowBlur = 0;
         ctx.fillStyle = '#050510';
         ctx.font = '900 10px sans-serif';
-        ctx.fillText(`★ BEST ${bestRecordMeters}m`, bestSx, bestSy - 101);
+        ctx.fillText(`★ BEST ${bestRecordMeters}m`, bestSx, bestSy - 95);
       }
     }
     ctx.restore();
