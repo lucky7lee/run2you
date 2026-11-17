@@ -9,6 +9,7 @@ class NeonBike {
     this.vy = 0;
     this.angle = 0;
     this.wheelRot = 0;
+    this.animTimer = 0; // 엔진 코어 맥동 및 휘날리는 네온 스카프 애니메이션 타이머
 
     // 점프 물리 파라미터
     this.isGrounded = true;
@@ -18,11 +19,11 @@ class NeonBike {
     this.coyoteTimer = 0;
     this.jumpBufferTimer = 0;
 
-    // 비행기 변신 무적 모드 타이머 (10초간 자동 무적 비행)
+    // 비행기 변신 무적 모드 타이머 (7초간 자동 무적 비행)
     this.airplaneTimer = 0;
     this.postFlightShieldTimer = 0;
 
-    // 아담하고 날렵한 차체 크기
+    // 아담하고 날렵한 차체 크기 (화면 시야 최적화)
     this.scale = 0.60;
     this.width = 34;
     this.height = 18;
@@ -44,6 +45,7 @@ class NeonBike {
     this.jumpBufferTimer = 0;
     this.airplaneTimer = 0;
     this.postFlightShieldTimer = 0;
+    this.animTimer = 0;
     this.trail = [];
     this.muzzleFlashTimer = 0;
   }
@@ -96,6 +98,7 @@ class NeonBike {
   }
 
   update(dt, speedPx, road, canvasHeight) {
+    this.animTimer += dt;
     // 비행기 변신 중에는 초음속 부스트(1.32배 속도)로 자동 진행
     const effectiveSpeed = this.isAirplaneMode() ? speedPx * 1.32 : speedPx;
     this.worldX += effectiveSpeed * dt;
@@ -231,86 +234,269 @@ class NeonBike {
       return;
     }
 
-    // 4. 일반 소형 네온 오토바이 렌더링
+    // 4. 스타일리시 네온 슈퍼바이크 & 사이버 라이더 렌더링
     ctx.save();
     ctx.translate(sx, sy);
     ctx.rotate(this.angle);
 
     // 비행 종료 직후 1.5초 보호막 깜빡임 표시
     if (this.postFlightShieldTimer > 0) {
-      ctx.strokeStyle = 'rgba(0, 255, 200, 0.7)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(0, 255, 200, 0.75)';
+      ctx.fillStyle = 'rgba(0, 255, 200, 0.12)';
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
-      ctx.arc(0, -10, 22, 0, Math.PI * 2);
+      ctx.arc(0, -10, 24, 0, Math.PI * 2);
+      ctx.fill();
       ctx.stroke();
     }
 
     ctx.scale(this.scale, this.scale);
 
-    const wheelRadius = 11;
-    const rearWheelX = -19;
-    const frontWheelX = 20;
+    const wheelRadius = 11.5;
+    const rearWheelX = -20;
+    const frontWheelX = 21;
     const wheelY = -wheelRadius;
 
-    const beamGrad = ctx.createLinearGradient(frontWheelX + 4, wheelY - 12, frontWheelX + 80, wheelY - 4);
-    beamGrad.addColorStop(0, 'rgba(0, 243, 255, 0.38)');
+    // 1. 헤드라이트 네온 프로젝터 광선 (듀얼 레이어 빔)
+    const beamGrad = ctx.createLinearGradient(frontWheelX + 6, wheelY - 14, frontWheelX + 96, wheelY - 5);
+    beamGrad.addColorStop(0, 'rgba(0, 243, 255, 0.55)');
+    beamGrad.addColorStop(0.35, 'rgba(0, 243, 255, 0.22)');
     beamGrad.addColorStop(1, 'rgba(0, 243, 255, 0)');
     ctx.fillStyle = beamGrad;
     ctx.beginPath();
-    ctx.moveTo(frontWheelX + 2, wheelY - 14);
-    ctx.lineTo(frontWheelX + 80, wheelY - 26);
-    ctx.lineTo(frontWheelX + 80, wheelY + 4);
+    ctx.moveTo(frontWheelX + 4, wheelY - 16);
+    ctx.lineTo(frontWheelX + 96, wheelY - 32);
+    ctx.lineTo(frontWheelX + 96, wheelY + 6);
     ctx.closePath();
     ctx.fill();
 
-    this.drawNeonWheel(ctx, rearWheelX, wheelY, wheelRadius, '#00f3ff');
-    this.drawNeonWheel(ctx, frontWheelX, wheelY, wheelRadius, '#00f3ff');
+    // 2. 앞뒤 마그네틱 네온 휠 렌더링
+    this.drawNeonWheel(ctx, rearWheelX, wheelY, wheelRadius, false);
+    this.drawNeonWheel(ctx, frontWheelX, wheelY, wheelRadius, true);
 
+    // 3. 차체 하단 듀얼 배기 파이프 머플러 (Twin Exhaust System)
+    ctx.save();
+    ctx.strokeStyle = '#00f3ff';
+    ctx.fillStyle = '#0b162c';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(-1, wheelY - 4);
+    ctx.lineTo(-14, wheelY - 3);
+    ctx.lineTo(-24, wheelY - 7);
+    ctx.lineTo(-25, wheelY - 10);
+    ctx.lineTo(-15, wheelY - 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 배기구 플라즈마 팁 불꽃
+    const flamePulse = 3 + Math.sin(this.animTimer * 26) * 2;
+    ctx.fillStyle = '#ff2a85';
+    ctx.shadowColor = '#ff2a85';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(-25, wheelY - 10);
+    ctx.lineTo(-25 - flamePulse, wheelY - 8.5);
+    ctx.lineTo(-24, wheelY - 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // 4. 에어로 펜더 (Wheel Fenders)
+    ctx.save();
+    ctx.strokeStyle = '#00f3ff';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.arc(frontWheelX, wheelY, wheelRadius + 2, Math.PI * 1.05, Math.PI * 1.75);
+    ctx.moveTo(rearWheelX - 4, wheelY - 10);
+    ctx.arc(rearWheelX, wheelY, wheelRadius + 2.5, Math.PI * 1.15, Math.PI * 1.85);
+    ctx.stroke();
+    ctx.restore();
+
+    // 5. 슈퍼바이크 카본 프레임 & 에어로 카울링 (Main Cowl & Chassis)
+    ctx.save();
+    ctx.fillStyle = 'rgba(7, 16, 38, 0.94)';
+    ctx.strokeStyle = '#00f3ff';
     ctx.shadowColor = '#00f3ff';
     ctx.shadowBlur = 10;
-    ctx.strokeStyle = '#00f3ff';
-    ctx.lineWidth = 2.8;
+    ctx.lineWidth = 2.4;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
     ctx.beginPath();
+    // 리어 엑슬 -> 엔진 크래들 -> 프론트 스윙암
     ctx.moveTo(rearWheelX, wheelY);
-    ctx.lineTo(-4, wheelY - 11);
-    ctx.lineTo(11, wheelY - 16);
+    ctx.lineTo(-6, wheelY - 6);
+    ctx.lineTo(8, wheelY - 6);
     ctx.lineTo(frontWheelX, wheelY);
-    ctx.moveTo(rearWheelX - 6, wheelY - 15);
-    ctx.lineTo(-7, wheelY - 14);
-    ctx.lineTo(8, wheelY - 21);
-    ctx.lineTo(18, wheelY - 17);
-    ctx.lineTo(11, wheelY - 10);
+    // 프론트 포크 & 노즈 윈드실드
+    ctx.lineTo(18, wheelY - 16);
+    ctx.lineTo(24, wheelY - 18); // 뾰족한 사이버 노즈
+    ctx.lineTo(15, wheelY - 24); // 에어로 윈드실드 상단
+    ctx.lineTo(6, wheelY - 22);  // 연료 탱크
+    ctx.lineTo(-5, wheelY - 18); // 시트 연결부
+    ctx.lineTo(-14, wheelY - 22);// 치솟은 레이싱 테일
+    ctx.lineTo(-22, wheelY - 18);// 테일 스포일러 끝단
+    ctx.lineTo(-12, wheelY - 13);
     ctx.closePath();
+    ctx.fill();
     ctx.stroke();
 
-    ctx.strokeStyle = '#00ffcc';
-    ctx.shadowColor = '#00ffcc';
-    ctx.lineWidth = 2.6;
+    // 사이버 카나드 윙릿 (앞쪽 다운포스 날개)
+    ctx.strokeStyle = '#ff2a85';
+    ctx.lineWidth = 1.8;
     ctx.beginPath();
-    ctx.moveTo(-8, wheelY - 15);
-    ctx.lineTo(-1, wheelY - 27);
-    ctx.lineTo(11, wheelY - 20);
-    ctx.moveTo(-8, wheelY - 15);
-    ctx.lineTo(-2, wheelY - 7);
+    ctx.moveTo(14, wheelY - 15);
+    ctx.lineTo(22, wheelY - 13);
+    ctx.stroke();
+
+    // 리어 테일 네온 레드 엣지 라이트
+    ctx.strokeStyle = '#ff0055';
+    ctx.shadowColor = '#ff0055';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(-16, wheelY - 20);
+    ctx.lineTo(-22, wheelY - 17);
+    ctx.stroke();
+    ctx.restore();
+
+    // 6. 맥동하는 네온 플라즈마 리액터 코어 (Engine Reactor Core)
+    const pulse = 0.78 + Math.sin(this.animTimer * 12) * 0.22;
+    ctx.save();
+    ctx.translate(1, wheelY - 10);
+    ctx.fillStyle = `rgba(255, 42, 133, ${pulse * 0.9})`;
+    ctx.shadowColor = '#ff2a85';
+    ctx.shadowBlur = 12 * pulse;
+    ctx.beginPath();
+    ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.2;
     ctx.stroke();
 
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(3, wheelY - 30, 4.5, 0, Math.PI * 2);
+    ctx.arc(0, 0, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 7. 카리스마 사이버 라이더 (Cyberpunk Street Racer)
+    const riderY = wheelY;
+    const neckX = -3;
+    const neckY = riderY - 26;
+
+    // (A) 역동적으로 휘날리는 네온 에너지 머플러/스카프 (Flowing Energy Scarf)
+    ctx.save();
+    const scarfWave1 = Math.sin(this.animTimer * 16) * 4.5;
+    const scarfWave2 = Math.cos(this.animTimer * 18 + 0.8) * 6.5;
+    const scarfGrad = ctx.createLinearGradient(neckX, neckY, neckX - 38, neckY - 8);
+    scarfGrad.addColorStop(0, '#ffe600');
+    scarfGrad.addColorStop(0.5, '#ff2a85');
+    scarfGrad.addColorStop(1, 'rgba(0, 243, 255, 0.15)');
+
+    ctx.strokeStyle = scarfGrad;
+    ctx.shadowColor = '#ff2a85';
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 2.8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(neckX - 2, neckY);
+    ctx.quadraticCurveTo(neckX - 16, neckY - 5 + scarfWave1, neckX - 32, neckY - 4 + scarfWave2);
+    ctx.stroke();
+
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(neckX - 2, neckY + 1.5);
+    ctx.quadraticCurveTo(neckX - 14, neckY - 2 - scarfWave1, neckX - 28, neckY + 2 - scarfWave2);
+    ctx.stroke();
+    ctx.restore();
+
+    // (B) 라이더 하체 & 다리 & 니슬라이더 (Full Tuck Posture)
+    ctx.save();
+    ctx.strokeStyle = '#00f3ff';
+    ctx.fillStyle = '#0a1630';
+    ctx.shadowColor = '#00f3ff';
+    ctx.shadowBlur = 8;
+    ctx.lineWidth = 2.4;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(-11, riderY - 18); // 엉덩이
+    ctx.lineTo(-2, riderY - 14);  // 무릎
+    ctx.lineTo(-8, riderY - 6);   // 발
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffd700';
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.arc(-2, riderY - 14, 2.0, 0, Math.PI * 2);
     ctx.fill();
 
+    // (C) 라이더 상체 & 척추 & 어깨 아머
+    ctx.strokeStyle = '#00ffcc';
+    ctx.shadowColor = '#00ffcc';
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 3.0;
+    ctx.beginPath();
+    ctx.moveTo(-11, riderY - 18);
+    ctx.lineTo(-3, riderY - 24);
+    ctx.lineTo(4, riderY - 22);
+    ctx.stroke();
+
+    // (D) 레이싱 암 & 핸들 그립
+    ctx.strokeStyle = '#ffffff';
+    ctx.shadowBlur = 4;
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.moveTo(4, riderY - 22);
+    ctx.lineTo(8, riderY - 16);
+    ctx.lineTo(13, riderY - 18);
+    ctx.stroke();
+
+    // (E) 하이테크 풀페이스 에어로 헬멧 & 바이저
+    const headX = 3;
+    const headY = riderY - 30;
+
+    ctx.fillStyle = '#060f24';
+    ctx.strokeStyle = '#00f3ff';
+    ctx.shadowColor = '#00f3ff';
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.moveTo(headX + 5, headY + 3);
+    ctx.lineTo(headX + 6, headY - 3);
+    ctx.lineTo(headX + 2, headY - 6);
+    ctx.lineTo(headX - 6, headY - 5);
+    ctx.lineTo(headX - 5, headY + 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 전면 일자형 네온 사이버 바이저 슬릿
+    ctx.strokeStyle = '#ffe600';
+    ctx.shadowColor = '#ffe600';
+    ctx.shadowBlur = 12;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(headX + 1, headY - 2);
+    ctx.lineTo(headX + 6, headY - 1);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // 8. 총구 화염 이펙트 (사격 직후)
     if (this.muzzleFlashTimer > 0) {
       ctx.fillStyle = '#ffe600';
       ctx.shadowColor = '#ffe600';
-      ctx.shadowBlur = 14;
+      ctx.shadowBlur = 16;
       ctx.beginPath();
       ctx.moveTo(frontWheelX + 8, wheelY - 14);
-      ctx.lineTo(frontWheelX + 26, wheelY - 19);
-      ctx.lineTo(frontWheelX + 20, wheelY - 13);
-      ctx.lineTo(frontWheelX + 28, wheelY - 9);
+      ctx.lineTo(frontWheelX + 28, wheelY - 20);
+      ctx.lineTo(frontWheelX + 22, wheelY - 14);
+      ctx.lineTo(frontWheelX + 30, wheelY - 9);
       ctx.closePath();
       ctx.fill();
     }
@@ -387,28 +573,73 @@ class NeonBike {
     ctx.restore();
   }
 
-  drawNeonWheel(ctx, x, y, r, color) {
+  drawNeonWheel(ctx, x, y, r, isFront) {
     ctx.save();
     ctx.translate(x, y);
+
+    // 1. 브레이크 디스크 및 캘리퍼 (차체 기준 고정)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.65, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ff2a85';
+    ctx.shadowColor = '#ff2a85';
+    ctx.shadowBlur = 6;
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    if (isFront) {
+      ctx.arc(0, 0, r * 0.72, Math.PI * 0.75, Math.PI * 1.15);
+    } else {
+      ctx.arc(0, 0, r * 0.72, Math.PI * 1.6, Math.PI * 2.0);
+    }
+    ctx.stroke();
+
+    // 2. 회전하는 타이어 및 터빈 림
     ctx.rotate(this.wheelRot);
 
-    ctx.strokeStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 8;
-    ctx.lineWidth = 2.6;
+    // 두꺼운 타이어 림
+    ctx.strokeStyle = '#050c1e';
+    ctx.lineWidth = 3.6;
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.lineWidth = 1.3;
+    // 발광 네온 시안 림
+    ctx.strokeStyle = '#00f3ff';
+    ctx.shadowColor = '#00f3ff';
+    ctx.shadowBlur = 9;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 안쪽 화이트 악센트 링
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 1.0;
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 4개의 에어로 터빈 스포크 블레이드
+    ctx.lineWidth = 1.4;
     ctx.strokeStyle = '#ffffff';
-    for (let i = 0; i < 3; i++) {
-      const a = (i * Math.PI) / 3;
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2;
       ctx.beginPath();
-      ctx.moveTo(Math.cos(a) * -r, Math.sin(a) * -r);
-      ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      ctx.moveTo(Math.cos(a) * (r * 0.2), Math.sin(a) * (r * 0.2));
+      ctx.lineTo(Math.cos(a) * (r * 0.62), Math.sin(a) * (r * 0.62));
       ctx.stroke();
     }
+
+    // 중심 마그네틱 허브 코어
+    ctx.fillStyle = '#00f3ff';
+    ctx.beginPath();
+    ctx.arc(0, 0, 2.4, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
   }
 }
@@ -507,13 +738,13 @@ const OBSTACLE_TYPES = {
   },
 
   // 땅 위(허공) 공중 장애물 4종:
-  // 1) 높지 않아서 그냥 지나가도 되고, 점프해서 아예 위로 뛰어넘어도 되는 낮은 공중 장애물 2종
+  // 1) 높지 않아서 그냥 지나가도 되고, 점프해서 아예 위로 뛰어넘어도 되는 낮은 공중 장애물 2종 (오토바이 라이더 머리에 닿지 않게 bottomClearance 36px로 여유 배치)
   overhead_drone: {
     key: 'overhead_drone',
     label: '낮은 공중 폭뢰 드론',
     width: 52,
     height: 24,
-    bottomClearance: 27,
+    bottomClearance: 36,
     color: '#ff9900',
     isOverhead: true,
     isTallOverhead: false
@@ -523,7 +754,7 @@ const OBSTACLE_TYPES = {
     label: '낮은 공중 회전 톱날',
     width: 56,
     height: 25,
-    bottomClearance: 27,
+    bottomClearance: 36,
     color: '#ffaa00',
     isOverhead: true,
     isTallOverhead: false
@@ -534,7 +765,7 @@ const OBSTACLE_TYPES = {
     label: '초고층 공중 레이저 타워',
     width: 64,
     height: 165,
-    bottomClearance: 27,
+    bottomClearance: 36,
     color: '#ff3300',
     isOverhead: true,
     isTallOverhead: true
@@ -544,7 +775,7 @@ const OBSTACLE_TYPES = {
     label: '초고층 공중 가시 성벽',
     width: 78,
     height: 172,
-    bottomClearance: 27,
+    bottomClearance: 36,
     color: '#ff0044',
     isOverhead: true,
     isTallOverhead: true
@@ -607,11 +838,12 @@ class Obstacle {
     }
 
     // 1. 땅 위(허공) 공중 장애물 판정:
-    // - 점프하지 않고 그냥 달리면(bike.airHeight < 12) 하단 통로로 안전 통과!
-    // - 낮은 공중 장애물(topLimit ~ 51px)은 점프해서 아예 위로 뛰어넘으면(bike.airHeight > topLimit) 안전 통과!
-    // - 아주 높은 공중 장애물(topLimit ~ 195px)은 점프 시 무조건(12 <= airHeight <= 195) 부딪혀서 사망!
+    // - 점프하지 않고 그냥 달리면(bike.airHeight == 0) 머리 위 넉넉한 36px 통로로 절대 닿지 않고 안전 통과!
+    // - 점프를 뛰어 머리가 장애물 하단(36px)에 진입하는 높이(bike.airHeight >= 11)부터 충돌 판정 시작
+    // - 낮은 공중 장애물(topLimit ~ 60px)은 높게 점프해서 아예 위로 뛰어넘으면(bike.airHeight > topLimit) 안전 통과!
+    // - 아주 높은 공중 장애물(topLimit ~ 208px)은 점프 시 무조건(11 <= airHeight <= 208) 부딪혀서 사망!
     if (this.isOverhead) {
-      const bottomLimit = 12;
+      const bottomLimit = 11;
       const topLimit = this.bottomClearance + this.height;
       if (bike.airHeight >= bottomLimit && bike.airHeight <= topLimit) {
         return true;

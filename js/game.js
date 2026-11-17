@@ -62,7 +62,7 @@ class Run2YouGame {
     // 50단계 레벨 및 속도 제어
     this.level = 1;
     this.maxLevel = 50;
-    this.speedPx = 295;
+    this.speedPx = 310;
     this.currentSectorId = 0;
 
     // 스폰 관리용 월드 X 커서 및 15분 주행 중 5회 랜덤 등장하는 비행기 아이템 스케줄 큐
@@ -353,7 +353,7 @@ class Run2YouGame {
     this.bazookaCooldown = 0;
 
     this.level = 1;
-    this.speedPx = 295;
+    this.speedPx = 310;
     this.currentSectorId = 0;
 
     this.nextObstacleWx = 720;

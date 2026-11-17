@@ -153,9 +153,10 @@ class NeonRoad {
 
     for (let lv = 1; lv <= this.maxLevel; lv++) {
       const progress = (lv - 1) / (this.maxLevel - 1); // 0.0 ~ 1.0
-      // LV.1 속도 295 px/s (106 km/h) -> LV.50 속도 555 px/s (200 km/h)
-      const speedPx = Math.round(295 + progress * 260);
-      // 각 레벨을 통과하는 데 24초가 걸리도록 레벨별 도로 길이 산정
+      // 10레벨에서 "이제 빠르다!"는 체감이 확실히 들고, 50레벨에서 극한의 초고속(인간 최상위 실력자가 힘겹게 해낼 수준)을 내도록 곡선 설계
+      // LV.1: 310 px/s (112 km/h) -> LV.10: 492 px/s (177 km/h) -> LV.25: 674 px/s (243 km/h) -> LV.50: 910 px/s (328 km/h)
+      const speedPx = Math.round(310 + Math.pow(progress, 0.70) * 600);
+      // 각 레벨을 통과하는 데 18초가 걸리도록 레벨별 도로 길이 산정 (총 50단계 = 정확히 15분 완주)
       const spanPx = speedPx * this.secondsPerLevel;
       const spanMeters = Math.round(spanPx / 28);
 
@@ -183,7 +184,7 @@ class NeonRoad {
     }
 
     this.totalClearPx = cumulativePx;
-    this.totalClearMeters = cumulativeMeters; // 50단계 완주 총 거리 (약 18,214m, 20분 소요)
+    this.totalClearMeters = cumulativeMeters; // 50단계 완주 총 거리 (15분 소요)
   }
 
   initBackground() {
